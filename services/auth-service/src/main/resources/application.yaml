@@ -1,0 +1,35 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: auth-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5433/auth_db?options=-c%20TimeZone=UTC
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+#    properties:
+#      hibernate:
+#        jdbc:
+#          time_zone: UTC
+
+  flyway:
+    enabled: true
+    location: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+    endpoint:
+      health:
+        show-details: always
