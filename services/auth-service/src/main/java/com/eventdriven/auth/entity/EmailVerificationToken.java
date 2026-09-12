@@ -14,7 +14,7 @@ import java.util.UUID;
 @Table(name = "email_verification_tokens")
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 public class EmailVerificationToken {
 
     @Id
