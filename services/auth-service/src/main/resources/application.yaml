@@ -15,14 +15,20 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
-#    properties:
-#      hibernate:
-#        jdbc:
-#          time_zone: UTC
 
   flyway:
     enabled: true
     location: classpath:db/migration
+
+security:
+  jwt:
+    secret: "H7DFRJlgL/nx5ftSvz0r97c7AXeThNITkB5Oy3kuZPg="
+    access-token-expiration: 900000
+    issuer: auth-service
+
+  cookies:
+    secure: false
+    same-site: Lax
 
 management:
   endpoints:
@@ -33,3 +39,10 @@ management:
     endpoint:
       health:
         show-details: always
+
+logging:
+  level:
+    root: INFO
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    com.eventdriven.auth: DEBUG

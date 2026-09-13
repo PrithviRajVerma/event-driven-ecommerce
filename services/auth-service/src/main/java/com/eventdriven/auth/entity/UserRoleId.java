@@ -14,6 +14,7 @@ import java.util.UUID;
 @Setter
 @Embeddable
 @AllArgsConstructor
+@EqualsAndHashCode
 public class UserRoleId implements Serializable {
 
     private UUID userId;

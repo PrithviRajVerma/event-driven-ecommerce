@@ -9,7 +9,7 @@ import lombok.Setter;
 import java.util.UUID;
 
 @Entity
-@Table(name = "role")
+@Table(name = "roles")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
 @Setter
