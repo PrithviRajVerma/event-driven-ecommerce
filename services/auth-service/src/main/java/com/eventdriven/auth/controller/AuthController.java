@@ -88,7 +88,7 @@ public class AuthController {
         AuthResponse response = authService.refresh(request);
 
         ResponseCookie accessCookie = authCookieService.createAccessTokenCookie(response.getAccessToken());
-        ResponseCookie refreshCookie = authCookieService.createRefreshTokenCookie(request.getRefreshToken());
+        ResponseCookie refreshCookie = authCookieService.createRefreshTokenCookie(response.getRefreshToken());
 
         return ResponseEntity.status(HttpStatus.OK)
                 .header(HttpHeaders.SET_COOKIE,accessCookie.toString())
