@@ -18,7 +18,8 @@ public class SecurityConfig {
             HttpSecurity http,
             JwtTokenService jwtTokenService,
             CustomAccessDeniedHandler accessDeniedHandler,
-            CustomAuthenticationEntryPoint customAuthenticationEntryPoint
+            CustomAuthenticationEntryPoint customAuthenticationEntryPoint,
+            OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler
             ) throws Exception{
 
         JwtAuthenticationFilter jwtAuthenticationFilter = new JwtAuthenticationFilter(jwtTokenService);
@@ -31,8 +32,15 @@ public class SecurityConfig {
                         "/api/v1/auth/register",
                         "/api/v1/auth/verify-email",
                         "/api/v1/auth/resend-verification",
-                        "/api/v1/auth/login"
+                        "/api/v1/auth/login",
+                        "/oauth2/**",
+                        "/login/oauth2/**"
                 ).permitAll().anyRequest().authenticated())
+                .oauth2Login(
+                        oAuth -> {
+                            oAuth.successHandler(oAuth2AuthenticationSuccessHandler);
+                        }
+                )
                 .addFilterBefore(
                         jwtAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class

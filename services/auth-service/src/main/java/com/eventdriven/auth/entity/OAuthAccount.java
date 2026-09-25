@@ -20,7 +20,7 @@ import java.util.UUID;
                 )
         }
 )
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @Getter
 @Setter
 public class OAuthAccount {
@@ -41,5 +41,5 @@ public class OAuthAccount {
     private String providerUserId;
 
     @Column(name = "created_at",nullable = false)
-    private OffsetDateTime createAt;
+    private OffsetDateTime createdAt;
 }

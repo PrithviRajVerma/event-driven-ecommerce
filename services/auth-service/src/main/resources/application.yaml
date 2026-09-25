@@ -20,15 +20,27 @@ spring:
     enabled: true
     location: classpath:db/migration
 
-security:
-  jwt:
-    secret: "H7DFRJlgL/nx5ftSvz0r97c7AXeThNITkB5Oy3kuZPg="
-    access-token-expiration: 900000
-    issuer: auth-service
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope:
+              - openid
+              - profile
+              - email
 
   cookies:
     secure: false
     same-site: Lax
+
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+    access-token-expiration: 900000
+    issuer: auth-service
 
 management:
   endpoints:
@@ -36,7 +48,7 @@ management:
       exposure:
         include: health,info
 
-    endpoint:
+  endpoint:
       health:
         show-details: always
 

@@ -26,6 +26,8 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	implementation("org.flywaydb:flyway-database-postgresql")
 	implementation("io.jsonwebtoken:jjwt-api:0.13.0")
+	implementation("org.springframework.boot:spring-boot-starter-security-oauth2-client")
+	testImplementation("org.springframework.boot:spring-boot-starter-security-oauth2-client-test")
 	runtimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
 	runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
 	runtimeOnly("org.postgresql:postgresql")
