@@ -96,6 +96,15 @@ services:
       - inventory-db
       - payment-db
 
+  redis:
+    image: redis:7-alpine
+    container_name: ecommerce-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - ecommerce-network
+
 
 volumes:
   auth-db-data:

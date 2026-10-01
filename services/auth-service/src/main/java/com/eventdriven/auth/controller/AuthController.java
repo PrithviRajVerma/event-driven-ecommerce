@@ -1,20 +1,19 @@
 package com.eventdriven.auth.controller;
 
-import com.eventdriven.auth.dto.auth.LoginRequest;
-import com.eventdriven.auth.dto.auth.RefreshTokenRequest;
-import com.eventdriven.auth.dto.auth.RegisterRequest;
-import com.eventdriven.auth.dto.auth.ResendVerificationRequest;
+import com.eventdriven.auth.dto.auth.*;
 import com.eventdriven.auth.dto.response.AuthResponse;
 import com.eventdriven.auth.dto.response.MessageResponse;
+import com.eventdriven.auth.exception.RateLimitExceededException;
 import com.eventdriven.auth.service.AuthCookiesService;
 import com.eventdriven.auth.service.AuthService;
+import com.eventdriven.auth.service.RateLimitService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Duration;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -22,13 +21,16 @@ public class AuthController {
 
     private final AuthService authService;
     private final AuthCookiesService authCookieService;
+    private final RateLimitService rateLimitService;
 
     public AuthController(
             AuthService authService,
-            AuthCookiesService authCookieService
+            AuthCookiesService authCookieService,
+            RateLimitService rateLimitService
             ){
         this.authService = authService;
         this.authCookieService = authCookieService;
+        this.rateLimitService = rateLimitService;
     }
 
     @PostMapping("/register")
@@ -40,7 +42,7 @@ public class AuthController {
 
     @GetMapping("/verify-email")
     public ResponseEntity<MessageResponse> verifyEmail(
-            @RequestParam @Valid String token
+            @RequestParam  String token
     ){
         MessageResponse response = authService.verifyEmail(token);
 
@@ -50,9 +52,20 @@ public class AuthController {
 
     @PostMapping("/resend-verification")
     public ResponseEntity<MessageResponse> resendVerification(
-            @RequestBody @Valid ResendVerificationRequest request
+            @RequestBody @Valid ResendVerificationRequest request,
+            HttpServletRequest httpServletRequest
     ){
-       MessageResponse response = authService.resendVerification(request);
+        String ip = httpServletRequest.getRemoteAddr();
+
+        String key = "rate-limit:resend-verification:" + ip;
+
+        boolean isAllowed =  rateLimitService.isAllowed(key,3,Duration.ofMinutes(15));
+
+        if(!isAllowed){
+            throw new RateLimitExceededException();
+        }
+
+       MessageResponse response = authService.emailVerification(request);
 
        return ResponseEntity.status(HttpStatus.OK)
                .body(response);
@@ -60,8 +73,18 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<MessageResponse> login(
-            @RequestBody @Valid LoginRequest request
+            @RequestBody @Valid LoginRequest request,
+            HttpServletRequest httpServletRequest
     ){
+        String ip = httpServletRequest.getRemoteAddr();
+
+        String key = "rate-limit:login:" + ip;
+
+        boolean isAllowed = rateLimitService.isAllowed(key,5, Duration.ofMinutes(1));
+
+        if(!isAllowed){
+            throw new RateLimitExceededException();
+        }
 
         AuthResponse response = authService.login(request);
 
@@ -128,7 +151,39 @@ public class AuthController {
         return ResponseEntity.ok("admin access granted");
     }
 
+    @PostMapping("/forgot-password")
+    public ResponseEntity<MessageResponse> forgotPassword(
+            @RequestBody @Valid ForgotPasswordRequest forgotPasswordRequest,
+            HttpServletRequest httpServletRequest
+    )
+    {
+        String ip = httpServletRequest.getRemoteAddr();
+        String key = "rate-limit:forgot-password:" + ip;
+
+        boolean isAllowed = rateLimitService
+                                .isAllowed(key,5, Duration.ofMinutes(1));
+        if(!isAllowed){
+            throw new RateLimitExceededException();
+        }
+
+        String email = forgotPasswordRequest.getEmail().trim().toLowerCase();
+
+        MessageResponse response = authService.forgotPassword(email);
+
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(response);
+
+    }
 
 
+    @PostMapping("/reset-password")
+    public ResponseEntity<MessageResponse> resetPassword(
+            @RequestBody @Valid ResetPasswordRequest resetPasswordRequest
+    )
+    {
+        MessageResponse response = authService.resetPassword(resetPasswordRequest);
 
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(response);
+    }
 }

@@ -24,7 +24,7 @@ public class AuthCookiesService {
                 .secure(cookieProperties.secure())
                 .sameSite(cookieProperties.sameSite())
                 .path("/")
-                .maxAge(Duration.ofMinutes(5))
+                .maxAge(Duration.ofMinutes(15))
                 .build();
     }
 

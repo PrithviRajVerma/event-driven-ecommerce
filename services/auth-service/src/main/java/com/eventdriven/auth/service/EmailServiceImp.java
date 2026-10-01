@@ -11,7 +11,7 @@ public class EmailServiceImp implements EmailService {
     public void sendVerificationEmail(
             String email, String token
     ){
-
+        log.debug("Sending verification email to {} with token {}", email, token);
         String verificationLink =
                 "http://localhost:8081/api/v1/auth/verify-email?token=" + token;
 

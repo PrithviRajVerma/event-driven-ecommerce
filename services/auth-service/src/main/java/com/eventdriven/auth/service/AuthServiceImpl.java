@@ -1,9 +1,6 @@
 package com.eventdriven.auth.service;
 
-import com.eventdriven.auth.dto.auth.LoginRequest;
-import com.eventdriven.auth.dto.auth.RefreshTokenRequest;
-import com.eventdriven.auth.dto.auth.RegisterRequest;
-import com.eventdriven.auth.dto.auth.ResendVerificationRequest;
+import com.eventdriven.auth.dto.auth.*;
 import com.eventdriven.auth.dto.response.AuthResponse;
 import com.eventdriven.auth.dto.response.MessageResponse;
 import com.eventdriven.auth.entity.*;
@@ -35,6 +32,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserRoleRepository userRoleRepository;
     private final EmailVerificationTokenRepository emailVerificationTokenRepository;
     private final RefreshSessionRepository refreshSessionRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
 
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
@@ -136,18 +134,18 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public MessageResponse resendVerification(ResendVerificationRequest request){
+    public MessageResponse emailVerification(ResendVerificationRequest request){
+
         String email = request.email().trim().toLowerCase();
 
-        Optional<User> userOptional = userRepository.findByEmail(email);
+        User user = userRepository.findByEmail(email).orElse(null);
 
-        if(userOptional.isEmpty()){
+        if(user == null){
             return new MessageResponse("If email exists, verification email has been sent.");
         }
 
-        User user = userOptional.get();
-
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
 
         List<EmailVerificationToken> existingTokens = emailVerificationTokenRepository
                 .findByUserIdAndUsedAtIsNull(user.getId());
@@ -242,7 +240,7 @@ public class AuthServiceImpl implements AuthService {
         String refreshTokenHash = tokenHashService.hash(refreshToken);
 
         RefreshSession oldSession = refreshSessionRepository.findByTokenHash(refreshTokenHash)
-                .orElseThrow(InvalidCredentialsException::new);
+                .orElseThrow(InvalidRefreshTokenException::new);
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
@@ -316,5 +314,74 @@ public class AuthServiceImpl implements AuthService {
         refreshSession.setRevokedReason("LOGOUT");
 
         refreshSessionRepository.save(refreshSession);
+    }
+
+    @Transactional
+    @Override
+    public MessageResponse forgotPassword(String email){
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        userRepository.findByEmail(email).ifPresent(
+                user -> {
+                    String rawToken = tokenService.generateToken();
+                    String rawTokenHash = tokenHashService.hash(rawToken);
+
+                    PasswordResetToken passwordResetToken = new PasswordResetToken();
+
+                    passwordResetToken.setTokenHash(rawTokenHash);
+                    passwordResetToken.setCreatedAt(now);
+                    passwordResetToken.setExpiresAt(now.plusMinutes(5));
+                    passwordResetToken.setUser(user);
+
+                    passwordResetTokenRepository.save(passwordResetToken);
+
+                    log.debug("Forgot password requested for email: {}", email);
+                    log.debug("UserId: {}", user.getId());
+                    log.debug("passwordResetToken: {}", rawToken);
+                }
+        );
+
+        return new MessageResponse("If email and user account exist, a verification email has been sent.");
+    }
+
+    @Transactional
+    @Override
+    public MessageResponse resetPassword(ResetPasswordRequest resetPasswordRequest){
+
+        String token = resetPasswordRequest.getToken();
+        String tokenHash = tokenHashService.hash(token);
+
+
+        PasswordResetToken passwordResetToken
+                                        = passwordResetTokenRepository.findByTokenHash(tokenHash)
+                                                                            .orElseThrow(PasswordResetTokenNotFoundException::new);
+
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
+        if(passwordResetToken.getExpiresAt().isBefore(now)){
+            throw new InvalidPasswordResetTokenException();
+        }
+        if(passwordResetToken.getUsedAt() != null){
+            throw new InvalidPasswordResetTokenException();
+        }
+
+        User user = passwordResetToken.getUser();
+
+        String newPasswordHash = passwordEncoder.encode(resetPasswordRequest.getNewPassword());
+
+        user.setPasswordHash(newPasswordHash);
+        user.setUpdatedAt(now);
+
+        passwordResetToken.setUsedAt(now);
+
+        List<RefreshSession> refreshSessions = refreshSessionRepository
+                                                        .findByUserId(user.getId());
+
+        for(RefreshSession refreshSession : refreshSessions){
+            refreshSession.setLastUsedAt(now);
+            refreshSession.setRevokedAt(now);
+            refreshSession.setRevokedReason("password reset");
+        }
+
+        return new MessageResponse("Password Reset Successful.");
     }
 }

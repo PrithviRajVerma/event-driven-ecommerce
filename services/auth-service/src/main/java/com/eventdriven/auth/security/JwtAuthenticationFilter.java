@@ -19,7 +19,7 @@ import java.util.List;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private JwtTokenService jwtTokenService;
+    private final JwtTokenService jwtTokenService;
 
     public JwtAuthenticationFilter(JwtTokenService jwtTokenService){
         this.jwtTokenService = jwtTokenService;
@@ -44,6 +44,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Claims claim = jwtTokenService.parseAndValidate(token);
             String userId = claim.getSubject();
             List<String> roles = claim.get("roles",List.class);
+
+            if (roles == null) {
+                SecurityContextHolder.clearContext();
+                filterChain.doFilter(request, response);
+                return;
+            }
 
             List<SimpleGrantedAuthority> authorities = roles.stream()
                     .map(role -> new SimpleGrantedAuthority("ROLE_" + role))

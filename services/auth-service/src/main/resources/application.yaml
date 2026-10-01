@@ -32,15 +32,22 @@ spring:
               - profile
               - email
 
-  cookies:
-    secure: false
-    same-site: Lax
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+
 
 security:
   jwt:
     secret: ${JWT_SECRET}
     access-token-expiration: 900000
     issuer: auth-service
+
+  cookies:
+    secure: false
+    same-site: Lax
 
 management:
   endpoints:
