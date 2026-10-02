@@ -20,6 +20,11 @@ spring:
     enabled: true
     location: classpath:db/migration
 
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+    issuer: auth-service
+
 logging:
   level:
     root: INFO
