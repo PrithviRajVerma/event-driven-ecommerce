@@ -32,9 +32,6 @@ public class Product {
     @Column(nullable = false, length = 3)
     private String currency;
 
-    @Column(name = "stock_quantity", nullable = false)
-    private Integer stockQuantity;
-
     @Column(name = "image_url", length = 2048)
     private String imageUrl;
 

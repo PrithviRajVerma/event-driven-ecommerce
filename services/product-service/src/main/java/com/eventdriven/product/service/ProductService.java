@@ -34,7 +34,6 @@ public class ProductService {
         product.setDescription(request.description());
         product.setPrice(request.price());
         product.setCurrency(request.currency().toUpperCase(Locale.ROOT));
-        product.setStockQuantity(request.stockQuantity());
         product.setImageUrl(request.imageUrl());
         product.setActive(true);
         product.setCreatedAt(now);
