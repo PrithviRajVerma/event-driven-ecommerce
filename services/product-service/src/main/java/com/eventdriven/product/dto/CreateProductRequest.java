@@ -26,10 +26,6 @@ public record CreateProductRequest(
         @Size(min = 3, max = 3)
         String currency,
 
-        @NotNull
-        @Min(0)
-        Integer stockQuantity,
-
         @Size(max = 2048)
         String imageUrl
 

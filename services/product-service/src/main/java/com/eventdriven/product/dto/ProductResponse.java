@@ -10,7 +10,6 @@ public record ProductResponse(
         String description,
         BigDecimal price,
         String currency,
-        Integer stockQuantity,
         String imageUrl,
         Boolean active,
         OffsetDateTime createdAt,
