@@ -1,3 +1,33 @@
+server:
+  port: 8085
+
 spring:
   application:
     name: inventory-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5436/inventory_db?options=-c%20TimeZone=UTC
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    location: classpath:db/migration
+
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+    issuer: auth-service
+
+logging:
+  level:
+    root: INFO
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    com.eventdriven.inventory: DEBUG
