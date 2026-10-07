@@ -1,7 +1,6 @@
 package com.eventdriven.inventory.controller;
 
-import com.eventdriven.inventory.dto.CreateInventoryRequest;
-import com.eventdriven.inventory.dto.InventoryResponse;
+import com.eventdriven.inventory.dto.*;
 import com.eventdriven.inventory.service.InventoryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,5 +29,44 @@ public class InventoryController {
             @PathVariable UUID productId
     ) {
         return inventoryService.getInventoryByProductId(productId);
+    }
+
+    @PostMapping("/reserve")
+    public InventoryResponse reserve(
+            @Valid @RequestBody ReserveInventoryRequest request
+    ) {
+        return inventoryService.reserveInventory(request);
+    }
+
+    @PostMapping("/release")
+    public InventoryResponse release(
+            @Valid @RequestBody ReleaseInventoryRequest request
+    ) {
+        return inventoryService.releaseInventory(request);
+    }
+
+    @PostMapping("/confirm")
+    public InventoryResponse confirm(
+            @Valid @RequestBody ConfirmInventoryRequest request
+    ) {
+        return inventoryService.confirmInventory(request);
+    }
+
+    @PatchMapping("/products/{productId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public InventoryResponse updateStock(
+            @PathVariable UUID productId,
+            @Valid @RequestBody UpdateStockRequest request
+    ) {
+        return inventoryService.updateStock(productId, request);
+    }
+
+    @PostMapping("/products/{productId}/add-stock")
+    @PreAuthorize("hasRole('ADMIN')")
+    public InventoryResponse addStock(
+            @PathVariable UUID productId,
+            @Valid @RequestBody AddStockRequest request
+    ) {
+        return inventoryService.addStock(productId, request);
     }
 }
