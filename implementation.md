@@ -14,7 +14,7 @@
 | Auth Service | ✅ Done | ~95% |
 | Product Service | ✅ Done | ~90% |
 | Inventory Service | 🟢 In Progress (REST Complete) | ~70% |
-| Order Service | 🔴 Stub only | ~5% |
+| Order Service | 🟢 In Progress (Cart & Wishlist Complete) | ~50% |
 | Payment Service | 🔴 Stub only | ~3% |
 | Notification Service | 🔴 Stub only | ~3% |
 | API Gateway | 🔴 Stub only | ~3% |
@@ -23,7 +23,7 @@
 | Saga Workflows | 🔴 Not started | ~0% |
 | Idempotency | 🔴 Not started | ~0% |
 | Observability | 🟡 Partial | ~15% |
-| Testing | 🟡 Partial | ~10% |
+| Testing | 🟡 Partial | ~20% |
 
 ---
 
@@ -314,60 +314,80 @@
 
 ---
 
-## 🛒 Phase 5 — Order Service (`services/order-service` · port TBD)
+## 🛒 Phase 5 — Order Service (`services/order-service` · port 8083)
 
-> **Status: Stub Only** — Only the Spring Boot application entry point and a minimal `application.yaml` exist.
+> **Status: 🟢 In Progress** — Cart and Wishlist features complete with Dual Strategy (PostgreSQL + Redis). Order placement, checkout conversion, and state machine are pending.
 
-### Scaffold
+### Scaffold & Configuration
 
-- [x] `OrderServiceApplication.java` (main class only)
-- [x] `application.yaml` (`spring.application.name: order-service`)
-- [ ] `build.gradle.kts` — full dependency list (Spring Web, JPA, Flyway, Kafka, Security, Validation, Redis)
+- [x] `OrderServiceApplication.java` with `@ConfigurationPropertiesScan`
+- [x] `application.yaml` (port 8083, datasource pointing to `order_db:5435`, Redis `6379`, JWT secret, guest TTL 7 days)
+- [x] `build.gradle.kts` — Spring WebMvc, JPA, Flyway, Redis, Security, JJWT, Validation, PostgreSQL, Lombok, Jackson
 
-### Database / Migrations
+### Security Infrastructure
 
-- [x] `order-db` container present in `docker-compose.yaml`
-- [ ] Flyway migration: `V1__create_orders_table.sql`
-- [ ] Flyway migration: `V2__create_order_items_table.sql`
+- [x] `JwtConfig` + `JwtProperties`
+- [x] `JwtTokenService`
+- [x] `JwtAuthenticationFilter` (supports both HttpOnly cookies and `Authorization: Bearer` headers)
+- [x] `SecurityConfig` (public cart access with optional guest cart ID, authenticated wishlist & cart merge)
 
-### Domain
+### Cart & Wishlist Domain & Persistence (Dual Strategy: PostgreSQL + Redis)
 
-- [ ] `Order` entity (id, customer_id, status, total_amount, currency, timestamps)
-- [ ] `OrderItem` entity (order_id, product_id, quantity, unit_price, snapshot data)
+- [x] Flyway `V1__create_carts_and_items_table.sql` (`carts`, `cart_items` with unique product constraint and check constraints)
+- [x] Flyway `V2__create_wishlists_and_items_table.sql` (`wishlists`, `wishlist_items` with unique product constraint)
+- [x] Domain entities: `Cart`, `CartItem`, `Wishlist`, `WishlistItem`
+- [x] Repositories: `CartRepository`, `CartItemRepository`, `WishlistRepository`, `WishlistItemRepository` (with N+1 fetch join queries)
+- [x] Redis Guest Cart: `GuestCart`, `GuestCartItem`, `GuestCartRedisService` with configurable TTL
+
+### Cart & Wishlist Service Layer
+
+- [x] `CartService`:
+  - [x] Dual strategy dispatch: authenticated user → PostgreSQL, guest user → Redis (`X-Guest-Cart-Id`)
+  - [x] `getCart` (authenticated & guest)
+  - [x] `addItem` (add new item or increment quantity)
+  - [x] `updateItemQuantity` (update or remove if 0)
+  - [x] `removeItem`
+  - [x] `clearCart` (DB items clear or Redis key delete)
+  - [x] `mergeGuestCart` (merges Redis guest cart into PostgreSQL user cart on login and purges Redis key)
+  - [x] `moveToWishlist` (atomic transfer from cart to wishlist)
+- [x] `WishlistService`:
+  - [x] `getWishlist`
+  - [x] `addItem` (idempotent addition)
+  - [x] `removeItem`
+  - [x] `moveToCart` (transfer from wishlist to user cart)
+
+### Controllers & DTOs
+
+- [x] `CartController`:
+  - [x] `GET /api/v1/cart`
+  - [x] `POST /api/v1/cart/items`
+  - [x] `PATCH /api/v1/cart/items/{productId}`
+  - [x] `DELETE /api/v1/cart/items/{productId}`
+  - [x] `DELETE /api/v1/cart`
+  - [x] `POST /api/v1/cart/merge`
+  - [x] `POST /api/v1/cart/items/{productId}/move-to-wishlist`
+- [x] `WishlistController`:
+  - [x] `GET /api/v1/wishlist`
+  - [x] `POST /api/v1/wishlist/items`
+  - [x] `DELETE /api/v1/wishlist/items/{productId}`
+  - [x] `POST /api/v1/wishlist/items/{productId}/move-to-cart`
+- [x] DTOs: `AddToCartRequest`, `UpdateCartItemRequest`, `CartResponse`, `CartItemResponse`, `MergeCartRequest`, `AddToWishlistRequest`, `MoveWishlistItemToCartRequest`, `WishlistResponse`, `WishlistItemResponse`
+- [x] Exception handling: `GlobalExceptionHandler`, `CartNotFoundException`, `CartItemNotFoundException`, `WishlistItemNotFoundException`, `InvalidCartOperationException`, `UnauthorizedCartAccessException`
+
+### Order Management (Upcoming)
+
+- [ ] Flyway migration: `V3__create_orders_table.sql`
+- [ ] Flyway migration: `V4__create_order_items_table.sql`
+- [ ] `Order` entity & `OrderItem` entity
 - [ ] `OrderStatus` enum (`PENDING`, `CONFIRMED`, `CANCELLED`, `COMPLETED`)
-
-### Repositories
-
-- [ ] `OrderRepository`
-- [ ] `OrderItemRepository`
-
-### Service Layer
-
-- [ ] `createOrder(CreateOrderRequest)` — create order, publish `OrderCreated` event
+- [ ] `OrderRepository` & `OrderItemRepository`
+- [ ] `createOrderFromCart(UUID customerId)` — convert active cart to order, clear cart
 - [ ] `getOrder(UUID orderId, UUID customerId)`
 - [ ] `cancelOrder(UUID orderId)`
 - [ ] Order status state machine
+- [ ] `POST /api/v1/orders/checkout` & `GET /api/v1/orders`
 
-### Controller
-
-- [ ] `POST /api/v1/orders`
-- [ ] `GET /api/v1/orders/{id}`
-- [ ] `GET /api/v1/orders` (customer's orders)
-- [ ] `DELETE /api/v1/orders/{id}` (cancel)
-
-### DTOs
-
-- [ ] `CreateOrderRequest`
-- [ ] `OrderResponse`
-- [ ] `OrderItemResponse`
-
-### Security
-
-- [ ] JWT authentication filter (shared pattern from Auth/Product/Inventory)
-- [ ] Customer can only see their own orders
-- [ ] Admin can see all orders
-
-### Kafka Integration
+### Kafka Integration (Upcoming)
 
 - [ ] Publish `OrderCreated` event
 - [ ] Consume `InventoryReserved` / `InventoryReservationFailed`
@@ -725,8 +745,8 @@ FINALLY (Hardening)
 |---|---|---|---|
 | Auth Service | 8081 | auth_db | 5433 |
 | Product Service | 8082 | product_db | 5434 |
-| Order Service | TBD | order_db | 5435 |
-| Inventory Service | TBD | inventory_db | 5436 |
+| Order Service | 8083 | order_db | 5435 |
+| Inventory Service | 8085 | inventory_db | 5436 |
 | Payment Service | TBD | payment_db | 5437 |
 | API Gateway | TBD | — | — |
 | pgAdmin | 5050 | — | — |
