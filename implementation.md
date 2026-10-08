@@ -650,6 +650,15 @@
 
 ## 🔍 Phase 14 — Observability & Production Hardening
 
+### API Documentation (OpenAPI & Swagger UI)
+
+- [x] `springdoc-openapi-starter-webmvc-ui:2.8.5` integrated across all active services
+- [x] OpenAPI 3.1.0 JSON spec (`/v3/api-docs`) enabled
+- [x] Interactive Swagger UI (`/swagger-ui.html` / `/swagger-ui/index.html`) enabled with "Try it out"
+- [x] JWT Bearer authentication scheme (`bearerAuth`) configured in Swagger UI for authorizing protected endpoints
+- [x] Security filter chains updated to permit `/v3/api-docs/**` and `/swagger-ui/**` across all services
+- [x] Detailed `@Tag` and `@Operation` annotations on all controllers (Auth, Product, Inventory, Order/Cart/Wishlist)
+
 ### Actuator (Partial)
 
 - [x] Actuator dependency in Auth Service

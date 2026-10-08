@@ -61,6 +61,15 @@ flowchart TD
 | **Payment Service** | 8084 | `payment_db` | 5437 | — | Payment intent processing, mock/provider integration |
 | **Notification Service** | 8086 | — | — | — | Email notifications, transactional templates |
 
+### 📖 API Documentation (Swagger UI & OpenAPI Specs)
+
+| Service | Swagger UI Dashboard | OpenAPI 3.1 JSON Spec |
+|---|---|---|
+| **Auth Service** | [`http://localhost:8081/swagger-ui.html`](http://localhost:8081/swagger-ui.html) | [`http://localhost:8081/v3/api-docs`](http://localhost:8081/v3/api-docs) |
+| **Product Service** | [`http://localhost:8082/swagger-ui.html`](http://localhost:8082/swagger-ui.html) | [`http://localhost:8082/v3/api-docs`](http://localhost:8082/v3/api-docs) |
+| **Order Service** | [`http://localhost:8083/swagger-ui.html`](http://localhost:8083/swagger-ui.html) | [`http://localhost:8083/v3/api-docs`](http://localhost:8083/v3/api-docs) |
+| **Inventory Service** | [`http://localhost:8085/swagger-ui.html`](http://localhost:8085/swagger-ui.html) | [`http://localhost:8085/v3/api-docs`](http://localhost:8085/v3/api-docs) |
+
 ---
 
 ## 🧩 3. Domain Deep Dive & Feature Design
