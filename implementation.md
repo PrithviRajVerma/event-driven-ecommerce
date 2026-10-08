@@ -1,8 +1,8 @@
 # 📋 Implementation Tracker — Event-Driven E-Commerce Platform
 
-> **Last Updated:** 2026-10-07
+> **Last Updated:** 2026-10-08
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL · Kafka · Redis · Docker · JWT · OAuth2
-> **Status:** 🚧 Active Development — Auth & Product layers stable, Inventory scaffolded, remaining services are stubs
+> **Status:** 🚧 Active Development — Auth, Product & Inventory (REST) stable; Order Service Cart & Wishlist complete (dual storage: Postgres + Redis); Order Checkout & Kafka pending
 
 ---
 
@@ -619,7 +619,16 @@
 - [ ] Integration tests for inventory endpoints
 - [ ] Concurrent reservation tests (optimistic lock / race condition)
 
-### Order / Payment / Notification Tests
+### Order Service Tests
+
+- [x] `OrderServiceApplicationTests` — context load test (stub)
+- [x] Unit tests for `CartService` (`CartServiceTest` — 17 unit tests covering authenticated Postgres flow, guest Redis flow, TTL, cart merge, move to wishlist, error handling)
+- [x] Unit tests for `WishlistService` (`WishlistServiceTest` — 10 unit tests covering get, idempotent add, remove, move to cart)
+- [x] Live end-to-end integration verified: Guest cart (Redis TTL), Auth cart (Postgres), Cart Merge, Wishlist move-between, 400 validation, 401 unauthenticated check
+- [ ] Unit tests for Order checkout & state machine (when implemented)
+- [ ] Integration tests for Order endpoints
+
+### Payment / Notification Tests
 
 - [x] Context load stubs only
 - [ ] No meaningful tests yet
@@ -695,7 +704,7 @@
 | 5 | Admin endpoint `@PreAuthorize` on Product Service needs explicit verification | Medium | `AdminProductController.java` |
 | 6 | SMTP not configured — email delivery is likely a stub or console logger | Medium | `EmailServiceImpl.java` |
 | 7 | Kafka not in `docker-compose.yaml` despite being a declared dependency | High | `docker-compose.yaml` |
-| 8 | Order Service `application.yaml` nearly empty — missing datasource, port | High | `order-service/application.yaml` |
+| 8 | ~~Order Service `application.yaml` nearly empty — missing datasource, port~~ (Resolved) | None | `order-service/application.yaml` |
 | 9 | `roles` claim assertion in JWT test is commented out | Low | `JwtTokenServiceTest.java:58` |
 | 10 | No CORS config in any service | Medium | All services |
 
@@ -704,20 +713,19 @@
 ## 📅 Recommended Implementation Order
 
 ```text
-NOW (Complete in-progress work)
- ├── Fix JwtTokenServiceTest NPE bug
- ├── Make InventoryService.reserveInventory @Transactional
- ├── Verify AdminProductController @PreAuthorize annotations
- ├── Add CORS config to Auth + Product services
- └── Configure SMTP / email delivery
+NOW (Complete Order & Checkout foundation)
+ ├── Order entity + OrderItem entity + Flyway migrations (V3 & V4)
+ ├── Order status state machine (PENDING, CONFIRMED, CANCELLED, COMPLETED)
+ ├── Checkout flow: convert active Cart -> Order & clear Cart
+ ├── Order REST endpoints (POST /api/v1/orders/checkout, GET /api/v1/orders)
+ └── Fix JwtTokenServiceTest NPE bug in Auth Service
 
-NEXT (Order Service foundation)
- ├── Order Service build.gradle.kts full deps
- ├── Order Service application.yaml (datasource, port, JWT)
- ├── Flyway migrations for order schema
- ├── Order entity + repository
- ├── OrderService CRUD
- └── Order controller + DTOs + security
+NEXT (Kafka infrastructure)
+ ├── Add Kafka (KRaft mode) to docker-compose.yaml
+ ├── Define shared event contract POJOs (OrderCreated, InventoryReserved, etc.)
+ ├── Order Service → publish OrderCreated
+ ├── Inventory Service → consume OrderCreated, publish InventoryReserved
+ └── Payment Service foundation + consume InventoryReserved
 
 THEN (Kafka infrastructure)
  ├── Add Kafka to docker-compose.yaml
