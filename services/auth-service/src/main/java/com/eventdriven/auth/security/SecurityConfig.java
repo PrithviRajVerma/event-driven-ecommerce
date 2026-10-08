@@ -38,7 +38,11 @@ public class SecurityConfig {
                         "/api/v1/auth/forgot-password",
                         "/api/v1/auth/reset-password",
                         "/oauth2/**",
-                        "/login/oauth2/**"
+                        "/login/oauth2/**",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/actuator/**"
                 ).permitAll().anyRequest().authenticated())
                 .oauth2Login(
                         oAuth -> {
