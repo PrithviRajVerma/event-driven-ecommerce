@@ -34,6 +34,15 @@ cart:
   guest:
     ttl-days: 7
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+
 logging:
   level:
     root: INFO

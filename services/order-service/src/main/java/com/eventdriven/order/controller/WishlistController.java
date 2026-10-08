@@ -5,6 +5,8 @@ import com.eventdriven.order.dto.MoveWishlistItemToCartRequest;
 import com.eventdriven.order.dto.WishlistResponse;
 import com.eventdriven.order.exception.UnauthorizedCartAccessException;
 import com.eventdriven.order.service.WishlistService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,11 +19,13 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/wishlist")
 @RequiredArgsConstructor
+@Tag(name = "Wishlist", description = "Customer Wishlist operations for saved items")
 public class WishlistController {
 
     private final WishlistService wishlistService;
 
     @GetMapping
+    @Operation(summary = "Get user wishlist", description = "Retrieves all saved items in the authenticated user's wishlist.")
     public ResponseEntity<WishlistResponse> getWishlist(Authentication authentication) {
         UUID customerId = getRequiredCustomerId(authentication);
         WishlistResponse response = wishlistService.getWishlist(customerId);
@@ -29,6 +33,7 @@ public class WishlistController {
     }
 
     @PostMapping("/items")
+    @Operation(summary = "Add item to wishlist", description = "Adds a product to the user's wishlist. This operation is idempotent.")
     public ResponseEntity<WishlistResponse> addItem(
             Authentication authentication,
             @Valid @RequestBody AddToWishlistRequest request
@@ -39,6 +44,7 @@ public class WishlistController {
     }
 
     @DeleteMapping("/items/{productId}")
+    @Operation(summary = "Remove item from wishlist", description = "Removes a specific product from the user's wishlist.")
     public ResponseEntity<WishlistResponse> removeItem(
             Authentication authentication,
             @PathVariable UUID productId
@@ -49,6 +55,7 @@ public class WishlistController {
     }
 
     @PostMapping("/items/{productId}/move-to-cart")
+    @Operation(summary = "Move item from wishlist to cart", description = "Atomically removes an item from the user's wishlist and adds it to their active cart.")
     public ResponseEntity<Void> moveToCart(
             Authentication authentication,
             @PathVariable UUID productId,
