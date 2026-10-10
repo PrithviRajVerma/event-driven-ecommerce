@@ -300,6 +300,99 @@ class OrderServiceTest {
         verify(orderEventProducer).publishOrderCancelled(any(OrderCancelledEvent.class));
     }
 
+    @Test
+    void handleInventoryReserved_success_transitionsPendingToConfirmed() {
+        UUID orderId = UUID.randomUUID();
+        Order order = createMockOrder(orderId, customerId, OrderStatus.PENDING);
+
+        when(orderRepository.findWithItemsById(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        orderService.handleInventoryReserved(orderId);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        verify(orderRepository).save(order);
+
+        ArgumentCaptor<OrderConfirmedEvent> captor = ArgumentCaptor.forClass(OrderConfirmedEvent.class);
+        verify(orderEventProducer).publishOrderConfirmed(captor.capture());
+        assertThat(captor.getValue().getOrderId()).isEqualTo(orderId);
+        assertThat(captor.getValue().getCustomerId()).isEqualTo(customerId);
+    }
+
+    @Test
+    void handleInventoryReserved_alreadyConfirmed_ignoredIdempotently() {
+        UUID orderId = UUID.randomUUID();
+        Order order = createMockOrder(orderId, customerId, OrderStatus.CONFIRMED);
+
+        when(orderRepository.findWithItemsById(orderId)).thenReturn(Optional.of(order));
+
+        orderService.handleInventoryReserved(orderId);
+
+        verify(orderRepository, never()).save(any(Order.class));
+        verify(orderEventProducer, never()).publishOrderConfirmed(any());
+    }
+
+    @Test
+    void handleInventoryReservationFailed_success_cancelsOrder() {
+        UUID orderId = UUID.randomUUID();
+        Order order = createMockOrder(orderId, customerId, OrderStatus.PENDING);
+
+        when(orderRepository.findWithItemsById(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        orderService.handleInventoryReservationFailed(orderId, "Product 101 out of stock");
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        verify(orderRepository).save(order);
+
+        ArgumentCaptor<OrderCancelledEvent> captor = ArgumentCaptor.forClass(OrderCancelledEvent.class);
+        verify(orderEventProducer).publishOrderCancelled(captor.capture());
+        assertThat(captor.getValue().getOrderId()).isEqualTo(orderId);
+        assertThat(captor.getValue().getReason()).contains("Product 101 out of stock");
+    }
+
+    @Test
+    void handlePaymentCompleted_success_completesOrder() {
+        UUID orderId = UUID.randomUUID();
+        Order order = createMockOrder(orderId, customerId, OrderStatus.CONFIRMED);
+
+        when(orderRepository.findWithItemsById(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        orderService.handlePaymentCompleted(orderId);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.COMPLETED);
+        verify(orderRepository).save(order);
+    }
+
+    @Test
+    void handlePaymentFailed_success_cancelsOrder() {
+        UUID orderId = UUID.randomUUID();
+        Order order = createMockOrder(orderId, customerId, OrderStatus.CONFIRMED);
+
+        when(orderRepository.findWithItemsById(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        orderService.handlePaymentFailed(orderId, "Card expired");
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        verify(orderRepository).save(order);
+
+        ArgumentCaptor<OrderCancelledEvent> captor = ArgumentCaptor.forClass(OrderCancelledEvent.class);
+        verify(orderEventProducer).publishOrderCancelled(captor.capture());
+        assertThat(captor.getValue().getReason()).contains("Card expired");
+    }
+
+    @Test
+    void sagaHandlers_nullOrderId_safelyIgnored() {
+        orderService.handleInventoryReserved(null);
+        orderService.handleInventoryReservationFailed(null, "reason");
+        orderService.handlePaymentCompleted(null);
+        orderService.handlePaymentFailed(null, "reason");
+
+        verifyNoInteractions(orderRepository, orderEventProducer);
+    }
+
     private Order createMockOrder(UUID orderId, UUID customerId, OrderStatus status) {
         Order order = new Order();
         order.setId(orderId);

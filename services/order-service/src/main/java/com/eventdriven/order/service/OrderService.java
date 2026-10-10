@@ -188,6 +188,111 @@ public class OrderService {
         return mapToOrderResponse(savedOrder);
     }
 
+    @Transactional
+    public void handleInventoryReserved(UUID orderId) {
+        if (orderId == null) {
+            log.warn("Cannot handle InventoryReservedEvent with null orderId");
+            return;
+        }
+
+        Order order = orderRepository.findWithItemsById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        if (order.getStatus() == OrderStatus.PENDING) {
+            order.setStatus(OrderStatus.CONFIRMED);
+            order.setUpdatedAt(OffsetDateTime.now());
+            Order savedOrder = orderRepository.save(order);
+            log.info("Order {} confirmed after inventory reserved successfully", orderId);
+
+            orderEventProducer.publishOrderConfirmed(OrderConfirmedEvent.builder()
+                    .orderId(savedOrder.getId())
+                    .customerId(savedOrder.getCustomerId())
+                    .build());
+        } else {
+            log.warn("Ignoring InventoryReservedEvent for order {} with status {}", orderId, order.getStatus());
+        }
+    }
+
+    @Transactional
+    public void handleInventoryReservationFailed(UUID orderId, String reason) {
+        if (orderId == null) {
+            log.warn("Cannot handle ReservationFailedEvent with null orderId");
+            return;
+        }
+
+        Order order = orderRepository.findWithItemsById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        if (order.canBeCancelled()) {
+            order.setStatus(OrderStatus.CANCELLED);
+            order.setUpdatedAt(OffsetDateTime.now());
+            Order savedOrder = orderRepository.save(order);
+
+            String cancellationReason = (reason != null && !reason.isBlank())
+                    ? "Inventory reservation failed: " + reason
+                    : "Inventory reservation failed";
+            log.info("Order {} cancelled due to inventory reservation failure. Reason: {}", orderId, cancellationReason);
+
+            orderEventProducer.publishOrderCancelled(OrderCancelledEvent.builder()
+                    .orderId(savedOrder.getId())
+                    .customerId(savedOrder.getCustomerId())
+                    .reason(cancellationReason)
+                    .build());
+        } else {
+            log.warn("Cannot cancel order {} with status {} on inventory reservation failure", orderId, order.getStatus());
+        }
+    }
+
+    @Transactional
+    public void handlePaymentCompleted(UUID orderId) {
+        if (orderId == null) {
+            log.warn("Cannot handle PaymentCompletedEvent with null orderId");
+            return;
+        }
+
+        Order order = orderRepository.findWithItemsById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        if (order.getStatus() == OrderStatus.CONFIRMED || order.getStatus() == OrderStatus.PENDING) {
+            order.setStatus(OrderStatus.COMPLETED);
+            order.setUpdatedAt(OffsetDateTime.now());
+            orderRepository.save(order);
+            log.info("Order {} completed following successful payment", orderId);
+        } else {
+            log.warn("Ignoring PaymentCompletedEvent for order {} with status {}", orderId, order.getStatus());
+        }
+    }
+
+    @Transactional
+    public void handlePaymentFailed(UUID orderId, String reason) {
+        if (orderId == null) {
+            log.warn("Cannot handle PaymentFailedEvent with null orderId");
+            return;
+        }
+
+        Order order = orderRepository.findWithItemsById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        if (order.canBeCancelled()) {
+            order.setStatus(OrderStatus.CANCELLED);
+            order.setUpdatedAt(OffsetDateTime.now());
+            Order savedOrder = orderRepository.save(order);
+
+            String cancellationReason = (reason != null && !reason.isBlank())
+                    ? "Payment failed: " + reason
+                    : "Payment failed";
+            log.info("Order {} cancelled following payment failure. Reason: {}", orderId, cancellationReason);
+
+            orderEventProducer.publishOrderCancelled(OrderCancelledEvent.builder()
+                    .orderId(savedOrder.getId())
+                    .customerId(savedOrder.getCustomerId())
+                    .reason(cancellationReason)
+                    .build());
+        } else {
+            log.warn("Cannot cancel order {} with status {} on payment failure", orderId, order.getStatus());
+        }
+    }
+
     private OrderResponse mapToOrderResponse(Order order) {
         List<OrderItemResponse> itemResponses = order.getItems().stream()
                 .map(item -> OrderItemResponse.builder()
