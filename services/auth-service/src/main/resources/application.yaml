@@ -41,7 +41,7 @@ spring:
 
 security:
   jwt:
-    secret: ${JWT_SECRET}
+    secret: ${JWT_SECRET:H7DFRJlgL/nx5ftSvz0r97c7AXeThNITkB5Oy3kuZPg=}
     access-token-expiration: 900000
     issuer: auth-service
 

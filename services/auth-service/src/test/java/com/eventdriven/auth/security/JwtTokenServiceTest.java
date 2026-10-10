@@ -22,14 +22,12 @@ public class JwtTokenServiceTest {
 
     @BeforeEach
     void setup(){
-
-        ;
-
         JwtProperties jwtProperties = new JwtProperties(
                 "this-is-a-very-long-secret-key-for-testing-jwt-signing-123456",
                 900_000,
                 "auth-service"
         );
+        jwtTokenService = new JwtTokenService(jwtProperties);
     }
 
     @Test
@@ -55,10 +53,10 @@ public class JwtTokenServiceTest {
                 claim.get("email",String.class)
         );
 
-//        assertEquals(
-//                roles,
-//                claim.get("roles",List.class)
-//        );
+        assertEquals(
+                roles,
+                claim.get("roles",List.class)
+        );
 
         assertNotNull(claim.getExpiration());
         assertNotNull(claim.getIssuedAt());
