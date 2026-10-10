@@ -1,5 +1,7 @@
 package com.eventdriven.inventory.service;
 
+import com.eventdriven.events.inventory.InventoryReservedEvent;
+import com.eventdriven.events.order.OrderCreatedEvent;
 import com.eventdriven.inventory.dto.*;
 import com.eventdriven.inventory.entity.Inventory;
 import com.eventdriven.inventory.exception.InsufficientReservedStockException;
@@ -18,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -217,6 +220,106 @@ class InventoryServiceTest {
             assertEquals(50, response.availableQuantity());
             assertEquals(5, response.reservedQuantity());   // unchanged
             verify(inventoryRepository).save(inventory);
+        }
+    }
+
+    @Nested
+    @DisplayName("reserveOrderInventory tests")
+    class ReserveOrderInventoryTests {
+
+        @Test
+        void reserveOrderInventory_success() {
+            UUID orderId = UUID.randomUUID();
+            UUID prodId2 = UUID.randomUUID();
+
+            Inventory inventory2 = new Inventory();
+            inventory2.setId(UUID.randomUUID());
+            inventory2.setProductId(prodId2);
+            inventory2.setAvailableQuantity(20);
+            inventory2.setReservedQuantity(0);
+
+            OrderCreatedEvent.OrderItem item1 = OrderCreatedEvent.OrderItem.builder()
+                    .productId(productId)
+                    .quantity(3)
+                    .build();
+
+            OrderCreatedEvent.OrderItem item2 = OrderCreatedEvent.OrderItem.builder()
+                    .productId(prodId2)
+                    .quantity(5)
+                    .build();
+
+            when(inventoryRepository.findByProductId(productId)).thenReturn(Optional.of(inventory));
+            when(inventoryRepository.findByProductId(prodId2)).thenReturn(Optional.of(inventory2));
+            when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            List<InventoryReservedEvent.ReservedItem> reserved = inventoryService.reserveOrderInventory(
+                    orderId,
+                    List.of(item1, item2)
+            );
+
+            assertNotNull(reserved);
+            assertEquals(2, reserved.size());
+            assertEquals(7, inventory.getAvailableQuantity()); // 10 - 3
+            assertEquals(8, inventory.getReservedQuantity());  // 5 + 3
+            assertEquals(15, inventory2.getAvailableQuantity()); // 20 - 5
+            assertEquals(5, inventory2.getReservedQuantity());  // 0 + 5
+
+            verify(inventoryRepository).save(inventory);
+            verify(inventoryRepository).save(inventory2);
+        }
+
+        @Test
+        void reserveOrderInventory_insufficientStock_throwsException() {
+            UUID orderId = UUID.randomUUID();
+            OrderCreatedEvent.OrderItem item = OrderCreatedEvent.OrderItem.builder()
+                    .productId(productId)
+                    .quantity(50) // only 10 available
+                    .build();
+
+            when(inventoryRepository.findByProductId(productId)).thenReturn(Optional.of(inventory));
+
+            assertThrows(InsufficientStockException.class, () ->
+                    inventoryService.reserveOrderInventory(orderId, List.of(item))
+            );
+
+            verify(inventoryRepository, never()).save(any(Inventory.class));
+        }
+
+        @Test
+        void reserveOrderInventory_productNotFound_throwsException() {
+            UUID orderId = UUID.randomUUID();
+            UUID missingProductId = UUID.randomUUID();
+            OrderCreatedEvent.OrderItem item = OrderCreatedEvent.OrderItem.builder()
+                    .productId(missingProductId)
+                    .quantity(2)
+                    .build();
+
+            when(inventoryRepository.findByProductId(missingProductId)).thenReturn(Optional.empty());
+
+            assertThrows(InventoryNotFoundException.class, () ->
+                    inventoryService.reserveOrderInventory(orderId, List.of(item))
+            );
+
+            verify(inventoryRepository, never()).save(any(Inventory.class));
+        }
+
+        @Test
+        void reserveOrderInventory_emptyOrNull_throwsException() {
+            UUID orderId = UUID.randomUUID();
+
+            assertThrows(IllegalArgumentException.class, () ->
+                    inventoryService.reserveOrderInventory(orderId, null)
+            );
+
+            assertThrows(IllegalArgumentException.class, () ->
+                    inventoryService.reserveOrderInventory(orderId, List.of())
+            );
+
+            assertThrows(IllegalArgumentException.class, () ->
+                    inventoryService.reserveOrderInventory(null, List.of(
+                            OrderCreatedEvent.OrderItem.builder().productId(productId).quantity(1).build()
+                    ))
+            );
         }
     }
 }
