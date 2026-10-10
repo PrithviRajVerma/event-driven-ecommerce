@@ -20,9 +20,26 @@ spring:
     enabled: true
     location: classpath:db/migration
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      group-id: ${spring.application.name}-group
+      auto-offset-reset: earliest
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: "com.eventdriven.*"
+
 security:
   jwt:
-    secret: ${JWT_SECRET}
+    secret: ${JWT_SECRET:H7DFRJlgL/nx5ftSvz0r97c7AXeThNITkB5Oy3kuZPg=}
     issuer: auth-service
 
 logging:
