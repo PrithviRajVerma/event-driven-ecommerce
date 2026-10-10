@@ -180,18 +180,20 @@ To prevent dual-write bugs between database transactions and Kafka message publi
   ├── Unit test suite (27 tests passing)
   └── Live end-to-end endpoint verification with Postgres & Redis
 
-[🟢 SPRINT 6] Order Service — Checkout & Order Lifecycle (Current Target)
-  ├── Flyway migrations: orders & order_items tables
-  ├── Order entity, OrderItem entity, OrderStatus enum
-  ├── OrderRepository & OrderItemRepository
-  ├── Checkout flow: convert active Cart -> Order & clear Cart
-  ├── Order REST API: POST /api/v1/orders/checkout, GET /api/v1/orders/{id}
-  └── Unit & integration tests for Order lifecycle
+[✅ SPRINT 6] Order Service — Checkout & Order Lifecycle (:8083)
+  ├── Flyway migrations: orders & order_items tables (V3 & V4)
+  ├── Order entity, OrderItem entity, OrderStatus enum (PENDING, CONFIRMED, CANCELLED, COMPLETED)
+  ├── OrderRepository & OrderItemRepository (with optimized fetch joins)
+  ├── Checkout flow: convert active Cart -> Order, snapshot prices & clear Cart
+  ├── Order REST API: POST /api/v1/orders/checkout, GET /api/v1/orders, GET /api/v1/orders/{id}, POST /api/v1/orders/{id}/cancel
+  ├── Publish OrderCreatedEvent & OrderCancelledEvent to Kafka
+  └── Comprehensive test suite (OrderServiceTest & OrderControllerTest — 20 tests passing)
 
-[⚪ SPRINT 7] Kafka Infrastructure & Event Contracts
-  ├── Add Kafka (KRaft mode) to docker-compose.yaml
-  ├── Define shared event DTOs / contracts
-  └── Wire Kafka producers & consumers across Order and Inventory
+[🟢 SPRINT 7] Kafka Infrastructure & Event Contracts (Producers & Contracts Complete)
+  ├── [x] Add Kafka (KRaft mode) to docker-compose.yaml & configure Spring Kafka
+  ├── [x] Define shared event DTOs / contracts (`libs:event-contracts`)
+  ├── [x] Wire Kafka producers in Order Service (`OrderEventProducer`) and Inventory Service (`InventoryEventProducer`)
+  └── [ ] Wire Kafka consumers across Order and Inventory
 
 [⚪ SPRINT 8] Payment Service (:8084)
   ├── Payment entity, schema, and repository

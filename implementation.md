@@ -10,20 +10,20 @@
 
 | Layer | Status | Completion |
 |---|---|---|
-| Infrastructure (Docker / DBs / Redis) | ✅ Done | ~90% |
+| Infrastructure (Docker / DBs / Redis) | ✅ Done | ~95% |
 | Auth Service | ✅ Done | ~95% |
 | Product Service | ✅ Done | ~90% |
-| Inventory Service | 🟢 In Progress (REST Complete) | ~70% |
-| Order Service | 🟢 In Progress (Cart & Wishlist Complete) | ~50% |
+| Inventory Service | 🟢 In Progress (REST & Producer Complete) | ~75% |
+| Order Service | 🟢 In Progress (Cart, Wishlist & Checkout Complete) | ~85% |
 | Payment Service | 🔴 Stub only | ~3% |
 | Notification Service | 🔴 Stub only | ~3% |
 | API Gateway | 🔴 Stub only | ~3% |
-| Kafka / Event Bus | 🔴 Not started | ~0% |
+| Kafka / Event Bus | 🟢 In Progress (KRaft, Contracts & Producers) | ~50% |
 | Transactional Outbox | 🔴 Not started | ~0% |
 | Saga Workflows | 🔴 Not started | ~0% |
 | Idempotency | 🔴 Not started | ~0% |
-| Observability | 🟡 Partial | ~15% |
-| Testing | 🟡 Partial | ~20% |
+| Observability | 🟡 Partial | ~25% |
+| Testing | 🟡 Partial | ~45% |
 
 ---
 
@@ -39,8 +39,8 @@
 - [x] `payment-db` container (PostgreSQL 18.6 → port 5437)
 - [x] `pgadmin` container (port 5050)
 - [x] `redis` container (redis:7-alpine → port 6379)
-- [ ] `kafka` container (broker not yet in docker-compose)
-- [ ] `zookeeper` / KRaft mode for Kafka
+- [x] `kafka` container (`confluentinc/cp-kafka:7.5.0` in KRaft mode → port 9092 internal, port 9094 external)
+- [x] KRaft mode (no ZooKeeper required, single-node controller/broker with cluster ID)
 - [ ] `kafka-ui` or similar tooling for observability
 
 ### Project Build Setup
@@ -374,25 +374,26 @@
 - [x] DTOs: `AddToCartRequest`, `UpdateCartItemRequest`, `CartResponse`, `CartItemResponse`, `MergeCartRequest`, `AddToWishlistRequest`, `MoveWishlistItemToCartRequest`, `WishlistResponse`, `WishlistItemResponse`
 - [x] Exception handling: `GlobalExceptionHandler`, `CartNotFoundException`, `CartItemNotFoundException`, `WishlistItemNotFoundException`, `InvalidCartOperationException`, `UnauthorizedCartAccessException`
 
-### Order Management (Upcoming)
+### Order Management (Completed in Sprint 6)
 
-- [ ] Flyway migration: `V3__create_orders_table.sql`
-- [ ] Flyway migration: `V4__create_order_items_table.sql`
-- [ ] `Order` entity & `OrderItem` entity
-- [ ] `OrderStatus` enum (`PENDING`, `CONFIRMED`, `CANCELLED`, `COMPLETED`)
-- [ ] `OrderRepository` & `OrderItemRepository`
-- [ ] `createOrderFromCart(UUID customerId)` — convert active cart to order, clear cart
-- [ ] `getOrder(UUID orderId, UUID customerId)`
-- [ ] `cancelOrder(UUID orderId)`
-- [ ] Order status state machine
-- [ ] `POST /api/v1/orders/checkout` & `GET /api/v1/orders`
-
-### Kafka Integration (Upcoming)
-
-- [ ] Publish `OrderCreated` event
-- [ ] Consume `InventoryReserved` / `InventoryReservationFailed`
-- [ ] Consume `PaymentConfirmed` / `PaymentFailed`
-- [ ] Update order status based on events
+- [x] Flyway migration: `V3__create_orders_table.sql`
+- [x] Flyway migration: `V4__create_order_items_table.sql`
+- [x] `Order` entity & `OrderItem` entity
+- [x] `OrderStatus` enum (`PENDING`, `CONFIRMED`, `CANCELLED`, `COMPLETED`)
+- [x] `OrderRepository` & `OrderItemRepository`
+- [x] `createOrderFromCart(UUID customerId)` — convert active cart to order, snapshot item prices, clear cart
+- [x] `getOrder(UUID orderId, UUID customerId)`
+- [x] `cancelOrder(UUID orderId, UUID customerId, String reason)`
+- [x] Order status state machine (`canBeCancelled()` & `updateOrderStatus()`)
+- [x] `POST /api/v1/orders/checkout` & `GET /api/v1/orders` & `GET /api/v1/orders/{orderId}` & `POST /api/v1/orders/{orderId}/cancel`
+- [x] Unit test suite (`OrderServiceTest` — 13 tests, `OrderControllerTest` — 7 tests)
+- [x] Swagger UI & OpenAPI 3.1 schema documentation for Order endpoints
+- [x] Publish `OrderCreatedEvent` to Kafka on checkout
+- [x] Publish `OrderCancelledEvent` to Kafka on cancellation
+- [x] Publish `OrderConfirmedEvent` to Kafka on status update
+- [ ] Consume `InventoryReserved` / `InventoryReservationFailed` (Sprint 7)
+- [ ] Consume `PaymentConfirmed` / `PaymentFailed` (Sprint 7/8)
+- [ ] Update order status based on consumed saga events (Sprint 7/8)
 
 ---
 
@@ -500,32 +501,32 @@
 
 ## 📨 Phase 9 — Kafka & Event-Driven Architecture
 
-> **Status: Not Started** — Kafka dependencies are in product-service and inventory-service `build.gradle.kts`, but no producers, consumers, or topic configs exist yet.
+> **Status: 🟢 Infrastructure & Producers Complete** — Kafka broker running in KRaft mode (`:9092`, `:9094`); shared `libs:event-contracts` module with type-safe event models; `OrderEventProducer` and `InventoryEventProducer` fully implemented with unit test coverage.
 
 ### Infrastructure
 
-- [ ] Kafka broker added to `docker-compose.yaml`
-- [ ] Kafka topic configuration / auto-creation strategy
-- [ ] Kafka admin bean for topic management
+- [x] Kafka broker added to `docker-compose.yaml` (KRaft mode via `confluentinc/cp-kafka:7.5.0`)
+- [x] Spring Kafka producer and consumer configurations in `order-service`, `inventory-service`, and `product-service` `application.yaml`
+- [x] Kafka topic configuration beans (`KafkaTopicConfig.java` in `order-service` and `inventory-service`)
+- [x] Shared Gradle module `libs:event-contracts` (`OrderCreatedEvent`, `OrderConfirmedEvent`, `OrderCancelledEvent`, `InventoryReservedEvent`, `ReservationFailedEvent`, `InventoryReleasedEvent`, `PaymentCompletedEvent`, `PaymentFailedEvent`, `SendNotificationEvent`)
 
 ### Event Contracts (Topic Definitions)
 
-- [ ] `order.created` — published by Order Service
-- [ ] `inventory.reserved` — published by Inventory Service
-- [ ] `inventory.reservation.failed` — published by Inventory Service
-- [ ] `inventory.released` — published by Inventory Service
+- [x] `order.created` — published by Order Service
+- [x] `order.confirmed` — published by Order Service
+- [x] `order.cancelled` — published by Order Service
+- [x] `inventory.reserved` — published by Inventory Service
+- [x] `inventory.reservation.failed` — published by Inventory Service
+- [x] `inventory.released` — published by Inventory Service
 - [ ] `payment.initiated` — published by Payment Service
 - [ ] `payment.confirmed` — published by Payment Service
 - [ ] `payment.failed` — published by Payment Service
-- [ ] `order.completed` — published by Order Service
-- [ ] `order.cancelled` — published by Order Service
 
 ### Producers
 
-- [ ] Order Service → `order.created`
-- [ ] Inventory Service → `inventory.reserved`, `inventory.reservation.failed`, `inventory.released`
+- [x] Order Service → `OrderEventProducer` (`order.created`, `order.confirmed`, `order.cancelled`)
+- [x] Inventory Service → `InventoryEventProducer` (`inventory.reserved`, `inventory.reservation.failed`, `inventory.released`)
 - [ ] Payment Service → `payment.confirmed`, `payment.failed`
-- [ ] Order Service → `order.completed`, `order.cancelled`
 
 ### Consumers
 
@@ -706,15 +707,15 @@
 
 | # | Issue | Severity | Location |
 |---|---|---|---|
-| 1 | `jwtTokenService` field not assigned in `@BeforeEach` — NPE at test runtime | High | `JwtTokenServiceTest.java` |
+| 1 | ~~`jwtTokenService` field not assigned in `@BeforeEach` — NPE at test runtime~~ (Resolved) | None | `JwtTokenServiceTest.java` |
 | 2 | ~~`reserveInventory` method missing `@Transactional`~~ (Resolved) | None | `InventoryService.java` |
 | 3 | Refresh token expiry (30 days) hardcoded, not configurable via env | Low | `AuthServiceImpl.java:220` |
 | 4 | Password reset token expiry (5 min) hardcoded | Low | `AuthServiceImpl.java:332` |
 | 5 | Admin endpoint `@PreAuthorize` on Product Service needs explicit verification | Medium | `AdminProductController.java` |
 | 6 | SMTP not configured — email delivery is likely a stub or console logger | Medium | `EmailServiceImpl.java` |
-| 7 | Kafka not in `docker-compose.yaml` despite being a declared dependency | High | `docker-compose.yaml` |
+| 7 | ~~Kafka not in `docker-compose.yaml` despite being a declared dependency~~ (Resolved) | None | `docker-compose.yaml` |
 | 8 | ~~Order Service `application.yaml` nearly empty — missing datasource, port~~ (Resolved) | None | `order-service/application.yaml` |
-| 9 | `roles` claim assertion in JWT test is commented out | Low | `JwtTokenServiceTest.java:58` |
+| 9 | ~~`roles` claim assertion in JWT test is commented out~~ (Resolved) | None | `JwtTokenServiceTest.java:58` |
 | 10 | No CORS config in any service | Medium | All services |
 
 ---
