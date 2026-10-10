@@ -37,6 +37,7 @@ public class SecurityConfig {
                             "/swagger-ui.html"
                     ).permitAll()
                     .requestMatchers("/api/v1/wishlist/**").authenticated()
+                    .requestMatchers("/api/v1/orders/**").authenticated()
                     .anyRequest().authenticated()
             )
             .exceptionHandling(exception -> exception
