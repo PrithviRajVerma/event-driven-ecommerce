@@ -1,6 +1,7 @@
 rootProject.name = "event-driven-ecommerce"
 
 include(
+    "libs:event-contracts",
     "services:api-gateway",
     "services:auth-service",
     "services:inventory-service",
