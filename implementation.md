@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-10-10
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL · Kafka · Redis · Docker · JWT · OAuth2
-> **Status:** 🚧 Active Development — Auth, Product, Inventory (REST & Kafka Producer), and Order Service (Cart, Wishlist, Checkout & Kafka Producer) complete; Kafka consumers & Payment Service next
+> **Status:** 🚧 Active Development — Auth, Product, Inventory (REST, Producer & Consumer), and Order Service (Cart, Wishlist, Checkout, Producer & Consumers) complete; Sprint 8 (Payment Service) next
 
 ---
 
@@ -13,17 +13,17 @@
 | Infrastructure (Docker / DBs / Redis) | ✅ Done | ~95% |
 | Auth Service | ✅ Done | ~95% |
 | Product Service | ✅ Done | ~90% |
-| Inventory Service | 🟢 In Progress (REST & Producer Complete) | ~75% |
-| Order Service | 🟢 In Progress (Cart, Wishlist & Checkout Complete) | ~85% |
+| Inventory Service | ✅ Done (REST & Event Integration Complete) | ~90% |
+| Order Service | ✅ Done (Cart, Wishlist, Checkout & Event Integration Complete) | ~95% |
 | Payment Service | 🔴 Stub only | ~3% |
 | Notification Service | 🔴 Stub only | ~3% |
 | API Gateway | 🔴 Stub only | ~3% |
-| Kafka / Event Bus | 🟢 In Progress (KRaft, Contracts & Producers) | ~50% |
+| Kafka / Event Bus | 🟢 In Progress (KRaft, Contracts, Producers & Core Consumers) | ~75% |
 | Transactional Outbox | 🔴 Not started | ~0% |
-| Saga Workflows | 🔴 Not started | ~0% |
-| Idempotency | 🔴 Not started | ~0% |
+| Saga Workflows | 🟡 In Progress (Choreographed Consumers Wired) | ~30% |
+| Idempotency | 🟡 Partial (Consumer State Validation) | ~25% |
 | Observability | 🟡 Partial | ~25% |
-| Testing | 🟡 Partial | ~45% |
+| Testing | 🟡 Partial | ~60% |
 
 ---
 
@@ -304,20 +304,22 @@
 - [x] `InventoryServiceException`
 - [x] `ObjectOptimisticLockingFailureException` & `OptimisticLockingFailureException` (returns 409 Conflict)
 
-### Kafka Integration (Producers Complete, Consumers Pending)
+### Kafka Integration (Producers & Consumers Complete)
 
 - [x] `spring-boot-starter-kafka` and `libs:event-contracts` in `build.gradle.kts`
 - [x] Kafka producer & consumer configuration in `application.yaml`
-- [x] `KafkaTopicConfig` bean auto-creating `inventory.reserved`, `inventory.reservation.failed`, `inventory.released`
+- [x] `KafkaTopicConfig` bean auto-creating `order.created`, `inventory.reserved`, `inventory.reservation.failed`, `inventory.released`
 - [x] `InventoryEventProducer` — publishes `InventoryReservedEvent`, `ReservationFailedEvent`, and `InventoryReleasedEvent`
 - [x] `InventoryEventProducerTest` unit tests (3 test cases)
-- [ ] Kafka consumer for `OrderCreatedEvent` (Sprint 7)
+- [x] Kafka consumer for `OrderCreatedEvent` (`OrderCreatedConsumer` in Sprint 7)
+- [x] Atomic multi-item order reservation in `InventoryService.reserveOrderInventory` with transactional rollback on stock deficit
+- [x] `OrderCreatedConsumerTest` unit tests (4 test cases)
 
 ---
 
 ## 🛒 Phase 5 — Order Service (`services/order-service` · port 8083)
 
-> **Status: 🟢 In Progress** — Cart, Wishlist, Checkout conversion, Order lifecycle state machine, and Kafka event producers complete. Kafka consumers for inventory/payment events pending.
+> **Status: ✅ Complete** — Cart, Wishlist, Checkout conversion, Order lifecycle state machine, Kafka event producers, and saga event consumers complete.
 
 ### Scaffold & Configuration
 
@@ -392,9 +394,9 @@
 - [x] Publish `OrderCreatedEvent` to Kafka on checkout
 - [x] Publish `OrderCancelledEvent` to Kafka on cancellation
 - [x] Publish `OrderConfirmedEvent` to Kafka on status update
-- [ ] Consume `InventoryReserved` / `InventoryReservationFailed` (Sprint 7)
-- [ ] Consume `PaymentConfirmed` / `PaymentFailed` (Sprint 7/8)
-- [ ] Update order status based on consumed saga events (Sprint 7/8)
+- [x] Consume `InventoryReserved` / `InventoryReservationFailed` (`InventoryEventConsumer` in Sprint 7)
+- [x] Consume `PaymentCompleted` / `PaymentFailed` (`PaymentEventConsumer` in Sprint 7/8)
+- [x] Update order status based on consumed saga events (`handleInventoryReserved`, `handleInventoryReservationFailed`, `handlePaymentCompleted`, `handlePaymentFailed`)
 
 ---
 
@@ -502,7 +504,7 @@
 
 ## 📨 Phase 9 — Kafka & Event-Driven Architecture
 
-> **Status: 🟢 Infrastructure & Producers Complete** — Kafka broker running in KRaft mode (`:9092`, `:9094`); shared `libs:event-contracts` module with type-safe event models; `OrderEventProducer` and `InventoryEventProducer` fully implemented with unit test coverage.
+> **Status: 🟢 Infrastructure, Producers & Core Consumers Complete** — Kafka broker running in KRaft mode (`:9092`, `:9094`); shared `libs:event-contracts` module with type-safe event models and `KafkaTopics` constants; `OrderEventProducer` and `InventoryEventProducer` fully implemented; `OrderCreatedConsumer`, `InventoryEventConsumer`, and `PaymentEventConsumer` implemented with unit tests.
 
 ### Infrastructure
 
@@ -510,6 +512,7 @@
 - [x] Spring Kafka producer and consumer configurations in `order-service`, `inventory-service`, and `product-service` `application.yaml`
 - [x] Kafka topic configuration beans (`KafkaTopicConfig.java` in `order-service` and `inventory-service`)
 - [x] Shared Gradle module `libs:event-contracts` (`OrderCreatedEvent`, `OrderConfirmedEvent`, `OrderCancelledEvent`, `InventoryReservedEvent`, `ReservationFailedEvent`, `InventoryReleasedEvent`, `PaymentCompletedEvent`, `PaymentFailedEvent`, `SendNotificationEvent`)
+- [x] Centralized topic constants in `libs:event-contracts` (`KafkaTopics.java`)
 
 ### Event Contracts (Topic Definitions)
 
@@ -520,22 +523,23 @@
 - [x] `inventory.reservation.failed` — published by Inventory Service
 - [x] `inventory.released` — published by Inventory Service
 - [ ] `payment.initiated` — published by Payment Service
-- [ ] `payment.confirmed` — published by Payment Service
+- [ ] `payment.completed` — published by Payment Service
 - [ ] `payment.failed` — published by Payment Service
 
 ### Producers
 
 - [x] Order Service → `OrderEventProducer` (`order.created`, `order.confirmed`, `order.cancelled`)
 - [x] Inventory Service → `InventoryEventProducer` (`inventory.reserved`, `inventory.reservation.failed`, `inventory.released`)
-- [ ] Payment Service → `payment.confirmed`, `payment.failed`
+- [ ] Payment Service → `payment.completed`, `payment.failed`
 
 ### Consumers
 
-- [ ] Inventory Service ← `order.created`
-- [ ] Payment Service ← `inventory.reserved`
-- [ ] Order Service ← `inventory.reservation.failed`
-- [ ] Order Service ← `payment.confirmed`, `payment.failed`
-- [ ] Notification Service ← `order.created`, `payment.confirmed`, `payment.failed`
+- [x] Inventory Service ← `order.created` (`OrderCreatedConsumer`)
+- [ ] Payment Service ← `inventory.reserved` (Sprint 8)
+- [x] Order Service ← `inventory.reserved` (`InventoryEventConsumer`)
+- [x] Order Service ← `inventory.reservation.failed` (`InventoryEventConsumer`)
+- [x] Order Service ← `payment.completed`, `payment.failed` (`PaymentEventConsumer`)
+- [ ] Notification Service ← `order.created`, `payment.completed`, `payment.failed`
 
 ---
 
@@ -616,19 +620,22 @@
 
 ### Inventory Service Tests
 
-- [x] `InventoryServiceApplicationTests` — context load test (stub)
-- [x] Unit tests for `InventoryService` (`InventoryServiceTest` covering create, reserve, release, confirm, add, update, error cases)
-- [x] Unit tests for `InventoryEventProducer` (`InventoryEventProducerTest` covering `inventory.reserved`, `inventory.reservation.failed`, `inventory.released`)
+- [x] `InventoryServiceApplicationTests` — context load test (stub, disabled without live DB)
+- [x] Unit tests for `InventoryService` (`InventoryServiceTest` — 16 tests covering create, reserve, release, confirm, add, update, multi-item order reservation, error cases)
+- [x] Unit tests for `InventoryEventProducer` (`InventoryEventProducerTest` — 3 tests for `inventory.reserved`, `inventory.reservation.failed`, `inventory.released`)
+- [x] Unit tests for `OrderCreatedConsumer` (`OrderCreatedConsumerTest` — 4 tests for success, insufficient stock, not found, invalid event)
 - [ ] Integration tests for inventory endpoints
 - [ ] Concurrent reservation tests (optimistic lock / race condition)
 
 ### Order Service Tests
 
-- [x] `OrderServiceApplicationTests` — context load test (stub)
+- [x] `OrderServiceApplicationTests` — context load test (stub, disabled without live DB)
 - [x] Unit tests for `CartService` (`CartServiceTest` — 17 unit tests covering authenticated Postgres flow, guest Redis flow, TTL, cart merge, move to wishlist, error handling)
 - [x] Unit tests for `WishlistService` (`WishlistServiceTest` — 10 unit tests covering get, idempotent add, remove, move to cart)
-- [x] Unit tests for Order checkout & state machine (`OrderServiceTest` — 13 tests, `OrderControllerTest` — 7 tests)
+- [x] Unit tests for Order checkout, state machine & saga handlers (`OrderServiceTest` — 19 tests, `OrderControllerTest` — 7 tests)
 - [x] Unit tests for `OrderEventProducer` (`OrderEventProducerTest` — 3 tests for `order.created`, `order.cancelled`, `order.confirmed`)
+- [x] Unit tests for `InventoryEventConsumer` (`InventoryEventConsumerTest` — 4 tests)
+- [x] Unit tests for `PaymentEventConsumer` (`PaymentEventConsumerTest` — 4 tests)
 - [x] Live end-to-end integration verified: Guest cart (Redis TTL), Auth cart (Postgres), Cart Merge, Wishlist move-between, 400 validation, 401 unauthenticated check
 - [ ] Integration tests for Order endpoints (full HTTP stack with test DB)
 
@@ -640,7 +647,7 @@
 ### Kafka Tests
 
 - [x] Event publication tests (producer) — `OrderEventProducerTest` & `InventoryEventProducerTest`
-- [ ] Event consumption tests (consumer)
+- [x] Event consumption tests (consumer) — `OrderCreatedConsumerTest`, `InventoryEventConsumerTest`, `PaymentEventConsumerTest`
 - [ ] Duplicate event / idempotency tests
 - [ ] Retry behavior tests
 - [ ] Saga compensation tests
@@ -726,25 +733,24 @@
 ## 📅 Recommended Implementation Order
 
 ```text
-COMPLETED (Order Lifecycle & Kafka Producers)
+COMPLETED (Sprint 7: Kafka Infrastructure, Producers & Core Consumers)
  ├── [x] Order entity + OrderItem entity + Flyway migrations (V3 & V4)
  ├── [x] Order status state machine (PENDING, CONFIRMED, CANCELLED, COMPLETED)
  ├── [x] Checkout flow: convert active Cart -> Order & clear Cart
  ├── [x] Order REST endpoints (POST /api/v1/orders/checkout, GET /api/v1/orders)
  ├── [x] Add Kafka broker (KRaft mode) to docker-compose.yaml
- ├── [x] Shared event contracts library (`libs:event-contracts`)
+ ├── [x] Shared event contracts library (`libs:event-contracts`) and `KafkaTopics`
  ├── [x] Order Service → publish OrderCreated, OrderConfirmed, OrderCancelled
  ├── [x] Inventory Service → publish InventoryReserved, ReservationFailed, InventoryReleased
- └── [x] Fix JwtTokenServiceTest NPE bug & roles assertion in Auth Service
+ ├── [x] Inventory Service → consume order.created, atomic multi-item stock reservation, publish result
+ ├── [x] Order Service → consume inventory.reserved / inventory.reservation.failed, update status
+ ├── [x] Order Service → consume payment.completed / payment.failed, update status
+ └── [x] Comprehensive test suites for all producers, consumers, and saga state transitions
 
-NOW (Kafka Consumers & Event Integration)
- ├── Inventory Service → consume order.created, reserve stock, publish result
- └── Order Service → consume inventory.reserved / inventory.reservation.failed
-
-NEXT (Payment Service & Saga Workflow)
+NOW (Sprint 8: Payment Service & Saga Workflow)
  ├── Payment Service foundation (Postgres, Flyway, Payment entity, repo, REST)
- ├── Payment Service → consume inventory.reserved, process payment, publish result
- └── Order Service → update order status based on payment events
+ ├── Payment Service → consume inventory.reserved, process payment intent, publish result
+ └── End-to-end integration across Order, Inventory, and Payment topics
 
 THEN (Distributed patterns)
  ├── Transactional Outbox per service (Order, Inventory, Payment)

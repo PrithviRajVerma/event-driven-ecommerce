@@ -189,13 +189,15 @@ To prevent dual-write bugs between database transactions and Kafka message publi
   ├── Publish OrderCreatedEvent & OrderCancelledEvent to Kafka
   └── Comprehensive test suite (OrderServiceTest & OrderControllerTest — 20 tests passing)
 
-[🟢 SPRINT 7] Kafka Infrastructure & Event Contracts (Producers & Contracts Complete)
+[✅ SPRINT 7] Kafka Infrastructure, Event Contracts & Consumers
   ├── [x] Add Kafka (KRaft mode) to docker-compose.yaml & configure Spring Kafka
-  ├── [x] Define shared event DTOs / contracts (`libs:event-contracts`)
+  ├── [x] Define shared event DTOs / contracts (`libs:event-contracts`) and `KafkaTopics` constants
   ├── [x] Wire Kafka producers in Order Service (`OrderEventProducer`) and Inventory Service (`InventoryEventProducer`)
-  └── [ ] Wire Kafka consumers across Order and Inventory
+  ├── [x] Wire Kafka consumers in Inventory Service (`OrderCreatedConsumer` for `order.created`)
+  ├── [x] Wire Kafka consumers in Order Service (`InventoryEventConsumer`, `PaymentEventConsumer`)
+  └── [x] Comprehensive test suites for all producers, consumers, and saga handlers
 
-[⚪ SPRINT 8] Payment Service (:8084)
+[🟢 SPRINT 8] Payment Service (:8084)
   ├── Payment entity, schema, and repository
   ├── Payment intent processing boundary
   └── Consume inventory.reserved & publish payment events
@@ -218,11 +220,9 @@ To prevent dual-write bugs between database transactions and Kafka message publi
 
 ## 🎯 6. Immediate Next Steps
 
-1. **Sprint 6 (Order Domain & Checkout)**:
-   - Add Flyway migrations `V3__create_orders_table.sql` and `V4__create_order_items_table.sql`.
-   - Implement `Order` and `OrderItem` JPA entities with `OrderStatus` (`PENDING`, `CONFIRMED`, `CANCELLED`, `COMPLETED`).
-   - Implement checkout method `createOrderFromCart(UUID customerId)` in `OrderService` to transition cart items into a confirmed order.
-   - Expose `POST /api/v1/orders/checkout` and customer order history endpoints.
-2. **Sprint 7 (Kafka Event Bus)**:
-   - Provision Kafka (KRaft) in [`docker-compose.yaml`](file:///home/assassin/MY_WORK/Code/resume-projects/event-driven-eccomerce/docker-compose.yaml).
-   - Scaffold event publisher to broadcast `order.created`.
+1. **Sprint 8 (Payment Domain & Integration)**:
+   - Configure `services/payment-service` with database connection (`payment_db:5437`), JPA, Flyway, and Kafka dependencies.
+   - Add Flyway migration `V1__create_payments_table.sql`.
+   - Implement `Payment` entity and `PaymentRepository`.
+   - Implement payment processing service and REST endpoints.
+   - Wire Kafka consumer for `inventory.reserved` to initiate payment and producer for `payment.completed` / `payment.failed`.
