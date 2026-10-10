@@ -1,8 +1,8 @@
 # 📋 Implementation Tracker — Event-Driven E-Commerce Platform
 
-> **Last Updated:** 2026-10-08
+> **Last Updated:** 2026-10-10
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL · Kafka · Redis · Docker · JWT · OAuth2
-> **Status:** 🚧 Active Development — Auth, Product & Inventory (REST) stable; Order Service Cart & Wishlist complete (dual storage: Postgres + Redis); Order Checkout & Kafka pending
+> **Status:** 🚧 Active Development — Auth, Product, Inventory (REST & Kafka Producer), and Order Service (Cart, Wishlist, Checkout & Kafka Producer) complete; Kafka consumers & Payment Service next
 
 ---
 
@@ -233,7 +233,7 @@
 
 ---
 
-## 📦 Phase 4 — Inventory Service (`services/inventory-service` · port TBD)
+## 📦 Phase 4 — Inventory Service (`services/inventory-service` · port 8085)
 
 ### Database / Migrations
 
@@ -304,25 +304,26 @@
 - [x] `InventoryServiceException`
 - [x] `ObjectOptimisticLockingFailureException` & `OptimisticLockingFailureException` (returns 409 Conflict)
 
-### Kafka (Dependency Present, Not Wired)
+### Kafka Integration (Producers Complete, Consumers Pending)
 
-- [x] `spring-boot-starter-kafka` in `build.gradle.kts`
-- [ ] `InventoryReserved` event publishing
-- [ ] `InventoryReservationFailed` event publishing
-- [ ] `InventoryReleased` event publishing
-- [ ] Kafka consumer for `OrderCreated` event
+- [x] `spring-boot-starter-kafka` and `libs:event-contracts` in `build.gradle.kts`
+- [x] Kafka producer & consumer configuration in `application.yaml`
+- [x] `KafkaTopicConfig` bean auto-creating `inventory.reserved`, `inventory.reservation.failed`, `inventory.released`
+- [x] `InventoryEventProducer` — publishes `InventoryReservedEvent`, `ReservationFailedEvent`, and `InventoryReleasedEvent`
+- [x] `InventoryEventProducerTest` unit tests (3 test cases)
+- [ ] Kafka consumer for `OrderCreatedEvent` (Sprint 7)
 
 ---
 
 ## 🛒 Phase 5 — Order Service (`services/order-service` · port 8083)
 
-> **Status: 🟢 In Progress** — Cart and Wishlist features complete with Dual Strategy (PostgreSQL + Redis). Order placement, checkout conversion, and state machine are pending.
+> **Status: 🟢 In Progress** — Cart, Wishlist, Checkout conversion, Order lifecycle state machine, and Kafka event producers complete. Kafka consumers for inventory/payment events pending.
 
 ### Scaffold & Configuration
 
 - [x] `OrderServiceApplication.java` with `@ConfigurationPropertiesScan`
-- [x] `application.yaml` (port 8083, datasource pointing to `order_db:5435`, Redis `6379`, JWT secret, guest TTL 7 days)
-- [x] `build.gradle.kts` — Spring WebMvc, JPA, Flyway, Redis, Security, JJWT, Validation, PostgreSQL, Lombok, Jackson
+- [x] `application.yaml` (port 8083, datasource pointing to `order_db:5435`, Redis `6379`, JWT secret, guest TTL 7 days, Kafka producer/consumer config)
+- [x] `build.gradle.kts` — Spring WebMvc, JPA, Flyway, Redis, Security, JJWT, Validation, PostgreSQL, Lombok, Jackson, Spring Kafka, `libs:event-contracts`
 
 ### Security Infrastructure
 
@@ -597,8 +598,8 @@
 - [x] `JwtTokenServiceTest` — unit test file exists
   - [x] Token generation assertion written
   - [x] Claims validation (`sub`, `email`, expiration, issuedAt) written
-  - [ ] **BUG:** `jwtTokenService` field not assigned in `@BeforeEach` — will throw NPE at runtime
-  - [ ] Roles claim assertion commented out
+  - [x] `jwtTokenService` field properly initialized in `@BeforeEach`
+  - [x] `roles` claim assertion active and verified
 - [ ] Unit tests for `TokenHashService`
 - [ ] Unit tests for `AuthServiceImpl` (register, login, refresh, logout, forgot/reset password)
 - [ ] Integration tests for auth endpoints (full HTTP stack with test DB)
@@ -617,6 +618,7 @@
 
 - [x] `InventoryServiceApplicationTests` — context load test (stub)
 - [x] Unit tests for `InventoryService` (`InventoryServiceTest` covering create, reserve, release, confirm, add, update, error cases)
+- [x] Unit tests for `InventoryEventProducer` (`InventoryEventProducerTest` covering `inventory.reserved`, `inventory.reservation.failed`, `inventory.released`)
 - [ ] Integration tests for inventory endpoints
 - [ ] Concurrent reservation tests (optimistic lock / race condition)
 
@@ -625,18 +627,19 @@
 - [x] `OrderServiceApplicationTests` — context load test (stub)
 - [x] Unit tests for `CartService` (`CartServiceTest` — 17 unit tests covering authenticated Postgres flow, guest Redis flow, TTL, cart merge, move to wishlist, error handling)
 - [x] Unit tests for `WishlistService` (`WishlistServiceTest` — 10 unit tests covering get, idempotent add, remove, move to cart)
+- [x] Unit tests for Order checkout & state machine (`OrderServiceTest` — 13 tests, `OrderControllerTest` — 7 tests)
+- [x] Unit tests for `OrderEventProducer` (`OrderEventProducerTest` — 3 tests for `order.created`, `order.cancelled`, `order.confirmed`)
 - [x] Live end-to-end integration verified: Guest cart (Redis TTL), Auth cart (Postgres), Cart Merge, Wishlist move-between, 400 validation, 401 unauthenticated check
-- [ ] Unit tests for Order checkout & state machine (when implemented)
-- [ ] Integration tests for Order endpoints
+- [ ] Integration tests for Order endpoints (full HTTP stack with test DB)
 
 ### Payment / Notification Tests
 
 - [x] Context load stubs only
 - [ ] No meaningful tests yet
 
-### Kafka Tests (All Pending)
+### Kafka Tests
 
-- [ ] Event publication tests (producer)
+- [x] Event publication tests (producer) — `OrderEventProducerTest` & `InventoryEventProducerTest`
 - [ ] Event consumption tests (consumer)
 - [ ] Duplicate event / idempotency tests
 - [ ] Retry behavior tests
@@ -723,35 +726,34 @@
 ## 📅 Recommended Implementation Order
 
 ```text
-NOW (Complete Order & Checkout foundation)
- ├── Order entity + OrderItem entity + Flyway migrations (V3 & V4)
- ├── Order status state machine (PENDING, CONFIRMED, CANCELLED, COMPLETED)
- ├── Checkout flow: convert active Cart -> Order & clear Cart
- ├── Order REST endpoints (POST /api/v1/orders/checkout, GET /api/v1/orders)
- └── Fix JwtTokenServiceTest NPE bug in Auth Service
+COMPLETED (Order Lifecycle & Kafka Producers)
+ ├── [x] Order entity + OrderItem entity + Flyway migrations (V3 & V4)
+ ├── [x] Order status state machine (PENDING, CONFIRMED, CANCELLED, COMPLETED)
+ ├── [x] Checkout flow: convert active Cart -> Order & clear Cart
+ ├── [x] Order REST endpoints (POST /api/v1/orders/checkout, GET /api/v1/orders)
+ ├── [x] Add Kafka broker (KRaft mode) to docker-compose.yaml
+ ├── [x] Shared event contracts library (`libs:event-contracts`)
+ ├── [x] Order Service → publish OrderCreated, OrderConfirmed, OrderCancelled
+ ├── [x] Inventory Service → publish InventoryReserved, ReservationFailed, InventoryReleased
+ └── [x] Fix JwtTokenServiceTest NPE bug & roles assertion in Auth Service
 
-NEXT (Kafka infrastructure)
- ├── Add Kafka (KRaft mode) to docker-compose.yaml
- ├── Define shared event contract POJOs (OrderCreated, InventoryReserved, etc.)
- ├── Order Service → publish OrderCreated
- ├── Inventory Service → consume OrderCreated, publish InventoryReserved
- └── Payment Service foundation + consume InventoryReserved
+NOW (Kafka Consumers & Event Integration)
+ ├── Inventory Service → consume order.created, reserve stock, publish result
+ └── Order Service → consume inventory.reserved / inventory.reservation.failed
 
-THEN (Kafka infrastructure)
- ├── Add Kafka to docker-compose.yaml
- ├── Define event contract POJOs
- ├── Order Service → publish OrderCreated
- ├── Inventory Service → consume OrderCreated, publish InventoryReserved
- └── Payment Service foundation + consume InventoryReserved
+NEXT (Payment Service & Saga Workflow)
+ ├── Payment Service foundation (Postgres, Flyway, Payment entity, repo, REST)
+ ├── Payment Service → consume inventory.reserved, process payment, publish result
+ └── Order Service → update order status based on payment events
 
 THEN (Distributed patterns)
- ├── Transactional Outbox per service
- ├── Idempotency tables + checks per consumer
- └── Saga compensation flows
+ ├── Transactional Outbox per service (Order, Inventory, Payment)
+ ├── Idempotency tables + duplicate checks per consumer
+ └── Saga compensation flows & dead-letter topics
 
 FINALLY (Hardening)
  ├── Observability stack (Prometheus, Grafana, Tracing)
- ├── Full test coverage
+ ├── Full end-to-end test coverage
  └── API Gateway routing + edge concerns
 ```
 
@@ -769,4 +771,4 @@ FINALLY (Hardening)
 | API Gateway | TBD | — | — |
 | pgAdmin | 5050 | — | — |
 | Redis | — | — | 6379 |
-| Kafka | TBD | — | TBD |
+| Kafka | 9092 (internal) / 9094 (external) | — | — |
