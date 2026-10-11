@@ -272,8 +272,6 @@ public class CartService {
         return mapToCartResponse(saved);
     }
 
-    // --- Private Helper Methods: Guest User (Redis) ---
-
     private CartResponse getGuestCart(String guestCartId) {
         return guestCartRedisService.getCart(guestCartId)
                 .map(this::mapGuestToCartResponse)
@@ -397,6 +395,19 @@ public class CartService {
                 .updatedAt(OffsetDateTime.now())
                 .build();
     }
+
+//    private CartResponse emptyCartResponse(String guestCartId, UUID customerId) {
+//        return CartResponse.builder()
+//                .cartId(guestCartId != null ? guestCartId : (customerId != null ? customerId.toString() : null))
+//                .customerId(customerId)
+//                .items(List.of())
+//                .totalItems(0)
+//                .totalAmount(BigDecimal.ZERO)
+//                .updatedAt(OffsetDateTime.now())
+//                .build();
+//    }
+
+
 
     private boolean isValidGuestId(String guestCartId) {
         return guestCartId != null && !guestCartId.isBlank();
