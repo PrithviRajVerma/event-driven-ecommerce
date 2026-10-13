@@ -396,19 +396,6 @@ public class CartService {
                 .build();
     }
 
-//    private CartResponse emptyCartResponse(String guestCartId, UUID customerId) {
-//        return CartResponse.builder()
-//                .cartId(guestCartId != null ? guestCartId : (customerId != null ? customerId.toString() : null))
-//                .customerId(customerId)
-//                .items(List.of())
-//                .totalItems(0)
-//                .totalAmount(BigDecimal.ZERO)
-//                .updatedAt(OffsetDateTime.now())
-//                .build();
-//    }
-
-
-
     private boolean isValidGuestId(String guestCartId) {
         return guestCartId != null && !guestCartId.isBlank();
     }
