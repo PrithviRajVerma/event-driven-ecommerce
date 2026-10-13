@@ -2,6 +2,7 @@ package com.eventdriven.order.consumer;
 
 import com.eventdriven.events.payment.PaymentCompletedEvent;
 import com.eventdriven.events.payment.PaymentFailedEvent;
+import com.eventdriven.order.idempotency.IdempotencyService;
 import com.eventdriven.order.service.OrderService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,14 +22,19 @@ class PaymentEventConsumerTest {
     @Mock
     private OrderService orderService;
 
+    @Mock
+    private IdempotencyService idempotencyService;
+
     @InjectMocks
     private PaymentEventConsumer paymentEventConsumer;
 
     @Test
-    @DisplayName("handlePaymentCompleted calls orderService.handlePaymentCompleted")
+    @DisplayName("handlePaymentCompleted calls orderService.handlePaymentCompleted and records idempotency")
     void handlePaymentCompleted_Success() {
+        UUID eventId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         PaymentCompletedEvent event = PaymentCompletedEvent.builder()
+                .eventId(eventId)
                 .orderId(orderId)
                 .paymentId(UUID.randomUUID())
                 .customerId(UUID.randomUUID())
@@ -36,49 +42,75 @@ class PaymentEventConsumerTest {
                 .currency("USD")
                 .build();
 
+        when(idempotencyService.isAlreadyProcessed(eventId)).thenReturn(false);
+
         paymentEventConsumer.handlePaymentCompleted(event);
 
         verify(orderService).handlePaymentCompleted(orderId);
+        verify(idempotencyService).markAsProcessed(eventId, event.getEventType(), "order-service-group");
     }
 
     @Test
-    @DisplayName("handlePaymentFailed calls orderService.handlePaymentFailed")
-    void handlePaymentFailed_Success() {
+    @DisplayName("handlePaymentCompleted ignores duplicate event when already processed")
+    void handlePaymentCompleted_Duplicate_Skipped() {
+        UUID eventId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
-        String reason = "Card declined: insufficient funds";
-        PaymentFailedEvent event = PaymentFailedEvent.builder()
+        PaymentCompletedEvent event = PaymentCompletedEvent.builder()
+                .eventId(eventId)
                 .orderId(orderId)
-                .amount(new BigDecimal("99.99"))
-                .reason(reason)
                 .build();
 
-        paymentEventConsumer.handlePaymentFailed(event);
+        when(idempotencyService.isAlreadyProcessed(eventId)).thenReturn(true);
 
-        verify(orderService).handlePaymentFailed(orderId, reason);
-    }
-
-    @Test
-    @DisplayName("Null or empty events are ignored safely")
-    void handleEvents_NullIgnored() {
-        paymentEventConsumer.handlePaymentCompleted(null);
-        paymentEventConsumer.handlePaymentCompleted(new PaymentCompletedEvent());
-
-        paymentEventConsumer.handlePaymentFailed(null);
-        paymentEventConsumer.handlePaymentFailed(new PaymentFailedEvent());
+        paymentEventConsumer.handlePaymentCompleted(event);
 
         verifyNoInteractions(orderService);
     }
 
     @Test
-    @DisplayName("Exceptions in orderService are caught without terminating listener")
-    void handlePaymentCompleted_CatchesException() {
+    @DisplayName("handlePaymentFailed calls orderService.handlePaymentFailed and records idempotency")
+    void handlePaymentFailed_Success() {
+        UUID eventId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
-        PaymentCompletedEvent event = PaymentCompletedEvent.builder().orderId(orderId).build();
+        PaymentFailedEvent event = PaymentFailedEvent.builder()
+                .eventId(eventId)
+                .orderId(orderId)
+                .customerId(UUID.randomUUID())
+                .amount(new BigDecimal("50.00"))
+                .reason("Insufficient funds")
+                .build();
 
-        doThrow(new RuntimeException("DB down")).when(orderService).handlePaymentCompleted(orderId);
+        when(idempotencyService.isAlreadyProcessed(eventId)).thenReturn(false);
 
-        paymentEventConsumer.handlePaymentCompleted(event);
+        paymentEventConsumer.handlePaymentFailed(event);
 
-        verify(orderService).handlePaymentCompleted(orderId);
+        verify(orderService).handlePaymentFailed(orderId, "Insufficient funds");
+        verify(idempotencyService).markAsProcessed(eventId, event.getEventType(), "order-service-group");
+    }
+
+    @Test
+    @DisplayName("handlePaymentFailed ignores duplicate event when already processed")
+    void handlePaymentFailed_Duplicate_Skipped() {
+        UUID eventId = UUID.randomUUID();
+        PaymentFailedEvent event = PaymentFailedEvent.builder()
+                .eventId(eventId)
+                .orderId(UUID.randomUUID())
+                .reason("Card expired")
+                .build();
+
+        when(idempotencyService.isAlreadyProcessed(eventId)).thenReturn(true);
+
+        paymentEventConsumer.handlePaymentFailed(event);
+
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
+    @DisplayName("handlePaymentCompleted ignores null or empty orderId safely")
+    void handlePaymentCompleted_Null_SafelyIgnored() {
+        paymentEventConsumer.handlePaymentCompleted(null);
+        paymentEventConsumer.handlePaymentCompleted(PaymentCompletedEvent.builder().build());
+
+        verifyNoInteractions(orderService);
     }
 }

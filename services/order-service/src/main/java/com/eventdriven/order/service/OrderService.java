@@ -17,6 +17,8 @@ import com.eventdriven.order.repository.CartRepository;
 import com.eventdriven.order.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.eventdriven.events.KafkaTopics;
+import com.eventdriven.order.outbox.OutboxService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
     private final OrderEventProducer orderEventProducer;
+    private final OutboxService outboxService;
 
     @Transactional
     public OrderResponse createOrderFromCart(UUID customerId, CheckoutRequest request) {
@@ -99,6 +102,7 @@ public class OrderService {
                 .build();
 
         orderEventProducer.publishOrderCreated(event);
+        outboxService.saveEvent("ORDER", savedOrder.getId().toString(), KafkaTopics.ORDER_CREATED, event);
         log.info("Created order {} for customer {} with total amount {}", savedOrder.getId(), customerId, totalAmount);
 
         return mapToOrderResponse(savedOrder);
@@ -155,6 +159,7 @@ public class OrderService {
                 .build();
 
         orderEventProducer.publishOrderCancelled(event);
+        outboxService.saveEvent("ORDER", savedOrder.getId().toString(), KafkaTopics.ORDER_CANCELLED, event);
         log.info("Cancelled order {} for customer {}. Reason: {}", orderId, customerId, cancellationReason);
 
         return mapToOrderResponse(savedOrder);
@@ -204,10 +209,12 @@ public class OrderService {
             Order savedOrder = orderRepository.save(order);
             log.info("Order {} confirmed after inventory reserved successfully", orderId);
 
-            orderEventProducer.publishOrderConfirmed(OrderConfirmedEvent.builder()
+            OrderConfirmedEvent confirmedEvent = OrderConfirmedEvent.builder()
                     .orderId(savedOrder.getId())
                     .customerId(savedOrder.getCustomerId())
-                    .build());
+                    .build();
+            orderEventProducer.publishOrderConfirmed(confirmedEvent);
+            outboxService.saveEvent("ORDER", savedOrder.getId().toString(), KafkaTopics.ORDER_CONFIRMED, confirmedEvent);
         } else {
             log.warn("Ignoring InventoryReservedEvent for order {} with status {}", orderId, order.getStatus());
         }
@@ -233,11 +240,13 @@ public class OrderService {
                     : "Inventory reservation failed";
             log.info("Order {} cancelled due to inventory reservation failure. Reason: {}", orderId, cancellationReason);
 
-            orderEventProducer.publishOrderCancelled(OrderCancelledEvent.builder()
+            OrderCancelledEvent cancelledEvent = OrderCancelledEvent.builder()
                     .orderId(savedOrder.getId())
                     .customerId(savedOrder.getCustomerId())
                     .reason(cancellationReason)
-                    .build());
+                    .build();
+            orderEventProducer.publishOrderCancelled(cancelledEvent);
+            outboxService.saveEvent("ORDER", savedOrder.getId().toString(), KafkaTopics.ORDER_CANCELLED, cancelledEvent);
         } else {
             log.warn("Cannot cancel order {} with status {} on inventory reservation failure", orderId, order.getStatus());
         }
@@ -283,11 +292,13 @@ public class OrderService {
                     : "Payment failed";
             log.info("Order {} cancelled following payment failure. Reason: {}", orderId, cancellationReason);
 
-            orderEventProducer.publishOrderCancelled(OrderCancelledEvent.builder()
+            OrderCancelledEvent cancelledEvent = OrderCancelledEvent.builder()
                     .orderId(savedOrder.getId())
                     .customerId(savedOrder.getCustomerId())
                     .reason(cancellationReason)
-                    .build());
+                    .build();
+            orderEventProducer.publishOrderCancelled(cancelledEvent);
+            outboxService.saveEvent("ORDER", savedOrder.getId().toString(), KafkaTopics.ORDER_CANCELLED, cancelledEvent);
         } else {
             log.warn("Cannot cancel order {} with status {} on payment failure", orderId, order.getStatus());
         }

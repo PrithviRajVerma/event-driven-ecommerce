@@ -48,6 +48,9 @@ class OrderServiceTest {
     @Mock
     private OrderEventProducer orderEventProducer;
 
+    @Mock
+    private com.eventdriven.order.outbox.OutboxService outboxService;
+
     @InjectMocks
     private OrderService orderService;
 
