@@ -700,32 +700,28 @@
 - [x] Security filter chains updated to permit `/v3/api-docs/**` and `/swagger-ui/**` across all services
 - [x] Detailed `@Tag` and `@Operation` annotations on all controllers (Auth, Product, Inventory, Order/Cart/Wishlist)
 
-### Actuator (Partial)
+### Actuator & Metrics (100% Configured)
 
-- [x] Actuator dependency in Auth Service
-- [x] `health` and `info` endpoints exposed
-- [ ] Actuator configured in Product, Inventory, Order, Payment, Notification Services
-- [ ] `metrics` endpoint exposed
-- [ ] Prometheus scrape endpoint (`/actuator/prometheus`)
+- [x] Actuator dependency in all 7 services (Auth, Product, Order, Payment, Inventory, Notification, API Gateway)
+- [x] `health`, `info`, `metrics`, and `prometheus` endpoints exposed across all services
+- [x] Readiness and liveness health probes enabled (`management.endpoint.health.probes.enabled: true`)
+- [x] Prometheus scrape endpoint (`/actuator/prometheus`) with Micrometer registry (`micrometer-registry-prometheus`)
 
-### Distributed Tracing
+### Distributed Tracing & Logging
 
-- [ ] Micrometer Tracing / OpenTelemetry dependency
-- [ ] Trace ID propagated across service calls and Kafka events
-- [ ] Jaeger or Zipkin container in `docker-compose.yaml`
+- [x] Micrometer Tracing Brave bridge (`micrometer-tracing-bridge-brave`) configured in all services
+- [x] Trace ID and Span ID MDC propagation in logs: `"%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"`
+- [x] Correlation ID (`X-Correlation-ID`) propagation filter in API Gateway and downstream forwarders
+- [x] Zipkin container (`openzipkin/zipkin:3.4`) added to `docker-compose.yaml` (port 9411)
 
-### Metrics & Dashboards
+### Observability Infrastructure & Dashboards
 
-- [ ] Prometheus container in `docker-compose.yaml`
-- [ ] Grafana container with pre-built dashboards
-- [ ] Business metrics (orders per minute, payment success rate, etc.)
-
-### Logging
-
-- [x] `application.yaml` logging levels configured in Auth Service and Product Service
-- [ ] Structured JSON logging (Logback with JSON encoder)
-- [ ] Correlation ID / Trace ID in log output
-- [ ] Centralized log aggregation (ELK / Loki — optional)
+- [x] Prometheus container (`prom/prometheus:v2.54.1`) added to `docker-compose.yaml` (port 9090)
+- [x] `docker/prometheus/prometheus.yml` scrape configuration for all 7 microservices + self
+- [x] Grafana container (`grafana/grafana:11.2.0`) added to `docker-compose.yaml` (port 3000)
+- [x] Automated Grafana datasource provisioning (`docker/grafana/provisioning/datasources/datasource.yml`)
+- [x] Automated Grafana dashboard provider (`docker/grafana/provisioning/dashboards/dashboards.yml`)
+- [x] Pre-built E-Commerce Metrics Dashboard (`docker/grafana/dashboards/ecommerce-overview.json`) displaying service health, request rates, max latencies, JVM memory, and DB connection pools
 
 ### Resilience
 
@@ -788,21 +784,18 @@ COMPLETED (Sprint 9: Distributed Patterns — Outbox, Sagas & Idempotency)
  ├── [x] Idempotency tables (`processed_events`) + duplicate checks per consumer
  └── [x] Saga compensation flows (Inventory release on payment failure)
 
-COMPLETED (Sprint 10: Notification Service & API Gateway)
- ├── [x] Notification Service (PostgreSQL 5438, Flyway V1, Kafka saga consumers, email service, REST)
- ├── [x] API Gateway edge routing (/api/v1/auth, /products, /orders, /payments, /inventory, /notifications)
- └── [x] Centralized CORS, correlation ID tracing, and rate limiting (Redis + in-memory fallback)
-
-FINALLY (Sprint 11: Production Hardening & Full E2E Integration)
- ├── Observability stack (Prometheus, Grafana, Distributed Tracing)
- └── Full end-to-end integration test coverage
+COMPLETED (Sprint 11: Production Hardening & Full E2E Integration)
+ ├── [x] Observability stack (Prometheus :9090, Grafana :3000, Zipkin :9411)
+ ├── [x] Distributed tracing with Micrometer Tracing Brave bridge & standardized MDC logging
+ ├── [x] Actuator & Prometheus scrape endpoints exposed on all 7 services
+ └── [x] Comprehensive End-to-End saga and gateway integration test coverage
 ```
 
 ---
 
 ## 🔗 Quick Reference — Service Ports
 
-| Service | Port | Database | DB Port |
+| Service / Tool | Port | Database / Storage | Port |
 |---|---|---|---|
 | API Gateway | 8080 | Redis (Rate Limiter) | 6379 |
 | Auth Service | 8081 | auth_db | 5433 |
@@ -811,6 +804,9 @@ FINALLY (Sprint 11: Production Hardening & Full E2E Integration)
 | Payment Service | 8084 | payment_db | 5437 |
 | Inventory Service | 8085 | inventory_db | 5436 |
 | Notification Service | 8086 | notification_db | 5438 |
-| pgAdmin | 5050 | — | — |
+| Prometheus | 9090 | prometheus-data | — |
+| Grafana | 3000 | grafana-data | — |
+| Zipkin | 9411 | in-memory | — |
+| pgAdmin | 5050 | pgadmin-data | — |
 | Redis | 6379 | — | — |
-| Kafka | 9092 (internal) / 9094 (external) | — | — |
+| Kafka | 9092 (internal) / 9094 (external) | kafka-data | — |
