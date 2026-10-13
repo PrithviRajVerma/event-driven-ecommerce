@@ -1,8 +1,8 @@
 # 📋 Implementation Tracker — Event-Driven E-Commerce Platform
 
-> **Last Updated:** 2026-10-10
+> **Last Updated:** 2026-10-14
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL · Kafka · Redis · Docker · JWT · OAuth2
-> **Status:** 🚧 Active Development — Auth, Product, Inventory (REST, Producer & Consumer), and Order Service (Cart, Wishlist, Checkout, Producer & Consumers) complete; Sprint 8 (Payment Service) next
+> **Status:** 🚧 Active Development — Auth, Product, Inventory, Order, and Payment Service complete; Sprint 9 (Distributed Patterns: Outbox, Idempotency & Saga Compensation) next
 
 ---
 
@@ -10,20 +10,20 @@
 
 | Layer | Status | Completion |
 |---|---|---|
-| Infrastructure (Docker / DBs / Redis) | ✅ Done | ~95% |
+| Infrastructure (Docker / DBs / Redis / Kafka) | ✅ Done | ~95% |
 | Auth Service | ✅ Done | ~95% |
 | Product Service | ✅ Done | ~90% |
 | Inventory Service | ✅ Done (REST & Event Integration Complete) | ~90% |
 | Order Service | ✅ Done (Cart, Wishlist, Checkout & Event Integration Complete) | ~95% |
-| Payment Service | 🔴 Stub only | ~3% |
+| Payment Service | ✅ Done (REST & Event Integration Complete) | ~90% |
 | Notification Service | 🔴 Stub only | ~3% |
 | API Gateway | 🔴 Stub only | ~3% |
-| Kafka / Event Bus | 🟢 In Progress (KRaft, Contracts, Producers & Core Consumers) | ~75% |
+| Kafka / Event Bus | 🟢 In Progress (KRaft, Contracts, Producers & Core Consumers) | ~85% |
 | Transactional Outbox | 🔴 Not started | ~0% |
-| Saga Workflows | 🟡 In Progress (Choreographed Consumers Wired) | ~30% |
+| Saga Workflows | 🟡 In Progress (Choreographed Sagas Wired Across Order, Inventory & Payment) | ~60% |
 | Idempotency | 🟡 Partial (Consumer State Validation) | ~25% |
 | Observability | 🟡 Partial | ~25% |
-| Testing | 🟡 Partial | ~60% |
+| Testing | 🟢 Passing | ~75% |
 
 ---
 
@@ -400,43 +400,50 @@
 
 ---
 
-## 💳 Phase 6 — Payment Service (`services/payment-service` · port TBD)
+## 💳 Phase 6 — Payment Service (`services/payment-service` · port 8084)
+ 
+> **Status: ✅ Complete** — Database migrations, domain model, authorization, Kafka consumer (`inventory.reserved`), Kafka producer (`payment.completed` / `payment.failed`), REST endpoints, and test suites implemented.
 
-> **Status: Stub Only** — Only the Spring Boot application entry point and a minimal `application.yaml` exist.
+### Scaffold & Configuration
 
-### Scaffold
-
-- [x] `PaymentServiceApplication.java` (main class only)
-- [x] `application.yaml` (empty, only app name)
-- [ ] `build.gradle.kts` — full dependency list
+- [x] `PaymentServiceApplication.java` with `@ConfigurationPropertiesScan`
+- [x] `application.yaml` with port `8084`, PostgreSQL datasource (`payment_db:5437`), Kafka, JWT, and OpenAPI specs
+- [x] `build.gradle.kts` — full dependencies (JPA, Web, Security, JWT, Flyway, Kafka, Lombok, contracts)
 
 ### Database / Migrations
 
-- [x] `payment-db` container present in `docker-compose.yaml`
-- [ ] Flyway migration: `V1__create_payments_table.sql`
+- [x] `payment-db` container in `docker-compose.yaml` (port `5437:5432`)
+- [x] Flyway migration `V1__create_payments_table.sql` (`payments` table with check constraints and indexes)
 
-### Domain
+### Domain & Repository
 
-- [ ] `Payment` entity (id, order_id, amount, currency, status, provider_ref, timestamps)
-- [ ] `PaymentStatus` enum (`PENDING`, `CONFIRMED`, `FAILED`, `REFUNDED`)
+- [x] `Payment` entity (`id`, `orderId`, `customerId`, `amount`, `currency`, `status`, `paymentMethod`, `transactionReference`, `failureReason`, `timestamps`)
+- [x] `PaymentStatus` enum (`PENDING`, `COMPLETED`, `FAILED`, `REFUNDED`)
+- [x] `PaymentMethod` enum (`CREDIT_CARD`, `DEBIT_CARD`, `PAYPAL`, `MOCK_GATEWAY`)
+- [x] `PaymentRepository` (`findByOrderId`, `findByIdAndCustomerId`, `findByOrderIdAndCustomerId`, `findByCustomerIdOrderByCreatedAtDesc`)
 
 ### Service Layer
 
-- [ ] `initiatePayment(InitiatePaymentRequest)`
-- [ ] `confirmPayment(UUID paymentId)`
-- [ ] `failPayment(UUID paymentId, String reason)`
-- [ ] External payment provider integration boundary (e.g., Stripe/mock)
+- [x] `processPayment(ProcessPaymentRequest)` with transaction limit validation ($10,000 threshold simulation)
+- [x] `processOrderPayment(UUID orderId, UUID customerId, BigDecimal amount, String currency)`
+- [x] `getPaymentByOrderId(UUID orderId, UUID customerId)`
+- [x] `getPaymentById(UUID id, UUID customerId)`
+- [x] `getCustomerPayments(UUID customerId)`
+- [x] Custom exceptions and `GlobalExceptionHandler`
 
-### Controller
+### Controller & OpenAPI
 
-- [ ] `POST /api/v1/payments`
-- [ ] `GET /api/v1/payments/{id}`
+- [x] `POST /api/v1/payments/process`
+- [x] `GET /api/v1/payments/order/{orderId}`
+- [x] `GET /api/v1/payments/{id}`
+- [x] `GET /api/v1/payments`
+- [x] Swagger UI & OpenAPI 3.1 documentation configured
 
 ### Kafka Integration
 
-- [ ] Consume `InventoryReserved` event — initiate payment
-- [ ] Publish `PaymentConfirmed` event
-- [ ] Publish `PaymentFailed` event
+- [x] `KafkaTopicConfig` defining payment topics
+- [x] `InventoryReservedConsumer` listening to `inventory.reserved` (initiates payment)
+- [x] `PaymentEventProducer` publishing `payment.completed` and `payment.failed`
 
 ---
 
@@ -523,19 +530,19 @@
 - [x] `inventory.reservation.failed` — published by Inventory Service
 - [x] `inventory.released` — published by Inventory Service
 - [ ] `payment.initiated` — published by Payment Service
-- [ ] `payment.completed` — published by Payment Service
-- [ ] `payment.failed` — published by Payment Service
+- [x] `payment.completed` — published by Payment Service (`PaymentEventProducer`)
+- [x] `payment.failed` — published by Payment Service (`PaymentEventProducer`)
 
 ### Producers
 
 - [x] Order Service → `OrderEventProducer` (`order.created`, `order.confirmed`, `order.cancelled`)
 - [x] Inventory Service → `InventoryEventProducer` (`inventory.reserved`, `inventory.reservation.failed`, `inventory.released`)
-- [ ] Payment Service → `payment.completed`, `payment.failed`
+- [x] Payment Service → `PaymentEventProducer` (`payment.completed`, `payment.failed`)
 
 ### Consumers
 
 - [x] Inventory Service ← `order.created` (`OrderCreatedConsumer`)
-- [ ] Payment Service ← `inventory.reserved` (Sprint 8)
+- [x] Payment Service ← `inventory.reserved` (`InventoryReservedConsumer`)
 - [x] Order Service ← `inventory.reserved` (`InventoryEventConsumer`)
 - [x] Order Service ← `inventory.reservation.failed` (`InventoryEventConsumer`)
 - [x] Order Service ← `payment.completed`, `payment.failed` (`PaymentEventConsumer`)
@@ -639,9 +646,18 @@
 - [x] Live end-to-end integration verified: Guest cart (Redis TTL), Auth cart (Postgres), Cart Merge, Wishlist move-between, 400 validation, 401 unauthenticated check
 - [ ] Integration tests for Order endpoints (full HTTP stack with test DB)
 
-### Payment / Notification Tests
+### Payment Service Tests
 
-- [x] Context load stubs only
+- [x] `PaymentServiceApplicationTests` — context load test (stub, disabled without live DB)
+- [x] Unit tests for `PaymentService` (`PaymentServiceTest` — 9 tests covering processing, transaction limit, idempotency, failure, and queries)
+- [x] Unit tests for `PaymentEventProducer` (`PaymentEventProducerTest` — 2 tests for `payment.completed` and `payment.failed`)
+- [x] Unit tests for `InventoryReservedConsumer` (`InventoryReservedConsumerTest` — 4 tests for event processing, error handling, null guards)
+- [x] Controller slice tests for `PaymentController` (`PaymentControllerTest` — 5 tests for process, lookup by order, lookup by id, and customer list)
+- [ ] Integration tests for payment endpoints (full HTTP stack with test DB)
+
+### Notification Service Tests
+
+- [x] Context load stub only
 - [ ] No meaningful tests yet
 
 ### Kafka Tests
@@ -747,15 +763,16 @@ COMPLETED (Sprint 7: Kafka Infrastructure, Producers & Core Consumers)
  ├── [x] Order Service → consume payment.completed / payment.failed, update status
  └── [x] Comprehensive test suites for all producers, consumers, and saga state transitions
 
-NOW (Sprint 8: Payment Service & Saga Workflow)
- ├── Payment Service foundation (Postgres, Flyway, Payment entity, repo, REST)
- ├── Payment Service → consume inventory.reserved, process payment intent, publish result
- └── End-to-end integration across Order, Inventory, and Payment topics
+COMPLETED (Sprint 8: Payment Service & Saga Integration)
+ ├── [x] Payment Service foundation (PostgreSQL 5437, Flyway V1, Payment entity, repo, REST)
+ ├── [x] Payment Service → consume inventory.reserved, process payment intent, publish result
+ ├── [x] Payment Service → publish payment.completed / payment.failed
+ └── [x] Comprehensive test suites (21 unit and slice tests passing)
 
-THEN (Distributed patterns)
+NOW (Sprint 9: Distributed Patterns — Outbox, Sagas & Idempotency)
  ├── Transactional Outbox per service (Order, Inventory, Payment)
- ├── Idempotency tables + duplicate checks per consumer
- └── Saga compensation flows & dead-letter topics
+ ├── Idempotency tables (`processed_events`) + duplicate checks per consumer
+ └── Saga compensation flows (Inventory release on payment failure)
 
 FINALLY (Hardening)
  ├── Observability stack (Prometheus, Grafana, Tracing)
@@ -773,7 +790,7 @@ FINALLY (Hardening)
 | Product Service | 8082 | product_db | 5434 |
 | Order Service | 8083 | order_db | 5435 |
 | Inventory Service | 8085 | inventory_db | 5436 |
-| Payment Service | TBD | payment_db | 5437 |
+| Payment Service | 8084 | payment_db | 5437 |
 | API Gateway | TBD | — | — |
 | pgAdmin | 5050 | — | — |
 | Redis | — | — | 6379 |

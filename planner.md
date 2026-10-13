@@ -197,12 +197,15 @@ To prevent dual-write bugs between database transactions and Kafka message publi
   ├── [x] Wire Kafka consumers in Order Service (`InventoryEventConsumer`, `PaymentEventConsumer`)
   └── [x] Comprehensive test suites for all producers, consumers, and saga handlers
 
-[🟢 SPRINT 8] Payment Service (:8084)
-  ├── Payment entity, schema, and repository
-  ├── Payment intent processing boundary
-  └── Consume inventory.reserved & publish payment events
+[✅ SPRINT 8] Payment Service (:8084)
+  ├── [x] Flyway payment schema (`V1__create_payments_table.sql`) & domain entity (`Payment`)
+  ├── [x] `PaymentRepository` and `PaymentService` authorization boundary
+  ├── [x] `PaymentEventProducer` publishing `payment.completed` and `payment.failed`
+  ├── [x] `InventoryReservedConsumer` consuming `inventory.reserved`
+  ├── [x] Payment REST controller (`/api/v1/payments`) & OpenAPI Swagger documentation
+  └── [x] Comprehensive test suites (21 unit and controller slice tests passing)
 
-[⚪ SPRINT 9] Distributed Patterns (Outbox, Sagas & Idempotency)
+[🟢 SPRINT 9] Distributed Patterns (Outbox, Sagas & Idempotency)
   ├── Outbox tables & scheduled publisher relays
   ├── Processed events deduplication tables
   └── Saga compensation flows (Inventory release on payment failure)
@@ -220,9 +223,8 @@ To prevent dual-write bugs between database transactions and Kafka message publi
 
 ## 🎯 6. Immediate Next Steps
 
-1. **Sprint 8 (Payment Domain & Integration)**:
-   - Configure `services/payment-service` with database connection (`payment_db:5437`), JPA, Flyway, and Kafka dependencies.
-   - Add Flyway migration `V1__create_payments_table.sql`.
-   - Implement `Payment` entity and `PaymentRepository`.
-   - Implement payment processing service and REST endpoints.
-   - Wire Kafka consumer for `inventory.reserved` to initiate payment and producer for `payment.completed` / `payment.failed`.
+1. **Sprint 9 (Distributed Patterns — Outbox, Sagas & Idempotency)**:
+   - Implement `outbox_events` table migrations for Order, Inventory, and Payment services.
+   - Implement scheduled outbox publisher relays reading unpublished events and pushing to Kafka.
+   - Implement `processed_events` deduplication tables and consumer filters for exactly-once processing semantics.
+   - Wire compensating consumer in Inventory Service to release reserved inventory upon `payment.failed` or `order.cancelled`.
