@@ -1,5 +1,6 @@
 package com.eventdriven.payment.service;
 
+import com.eventdriven.events.KafkaTopics;
 import com.eventdriven.events.payment.PaymentCompletedEvent;
 import com.eventdriven.events.payment.PaymentFailedEvent;
 import com.eventdriven.payment.domain.Payment;
@@ -10,6 +11,7 @@ import com.eventdriven.payment.dto.ProcessPaymentRequest;
 import com.eventdriven.payment.exception.InvalidPaymentOperationException;
 import com.eventdriven.payment.exception.PaymentNotFoundException;
 import com.eventdriven.payment.exception.UnauthorizedPaymentAccessException;
+import com.eventdriven.payment.outbox.OutboxService;
 import com.eventdriven.payment.producer.PaymentEventProducer;
 import com.eventdriven.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final PaymentEventProducer paymentEventProducer;
+    private final OutboxService outboxService;
 
     @Transactional
     public PaymentResponse processPayment(ProcessPaymentRequest request) {
@@ -86,6 +89,7 @@ public class PaymentService {
                     .build();
 
             paymentEventProducer.publishPaymentFailed(failedEvent);
+            outboxService.saveEvent("PAYMENT", saved.getId().toString(), KafkaTopics.PAYMENT_FAILED, failedEvent);
             log.warn("Payment failed for order {}: {}", orderId, failureReason);
             return mapToResponse(saved);
         }
@@ -107,6 +111,7 @@ public class PaymentService {
                 .build();
 
         paymentEventProducer.publishPaymentCompleted(completedEvent);
+        outboxService.saveEvent("PAYMENT", saved.getId().toString(), KafkaTopics.PAYMENT_COMPLETED, completedEvent);
         log.info("Payment completed successfully for order {}. PaymentId: {}, TxnRef: {}",
                 orderId, saved.getId(), transactionReference);
 

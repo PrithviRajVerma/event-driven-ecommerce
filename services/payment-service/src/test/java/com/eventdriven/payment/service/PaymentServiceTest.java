@@ -40,6 +40,9 @@ class PaymentServiceTest {
     @Mock
     private PaymentEventProducer paymentEventProducer;
 
+    @Mock
+    private com.eventdriven.payment.outbox.OutboxService outboxService;
+
     @InjectMocks
     private PaymentService paymentService;
 
@@ -82,6 +85,7 @@ class PaymentServiceTest {
         assertThat(publishedEvent.getCustomerId()).isEqualTo(customerId);
         assertThat(publishedEvent.getAmount()).isEqualTo(amount);
         verify(paymentEventProducer, never()).publishPaymentFailed(any());
+        verify(outboxService).saveEvent(eq("PAYMENT"), anyString(), eq(com.eventdriven.events.KafkaTopics.PAYMENT_COMPLETED), any(PaymentCompletedEvent.class));
     }
 
     @Test
@@ -121,6 +125,7 @@ class PaymentServiceTest {
         assertThat(publishedEvent.getCustomerId()).isEqualTo(customerId);
         assertThat(publishedEvent.getReason()).contains("Transaction limit exceeded");
         verify(paymentEventProducer, never()).publishPaymentCompleted(any());
+        verify(outboxService).saveEvent(eq("PAYMENT"), anyString(), eq(com.eventdriven.events.KafkaTopics.PAYMENT_FAILED), any(PaymentFailedEvent.class));
     }
 
     @Test
