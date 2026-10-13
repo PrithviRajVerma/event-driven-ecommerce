@@ -53,13 +53,23 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
-
+        include: health,info,metrics,prometheus
   endpoint:
-      health:
-        show-details: always
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
 
 logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
   level:
     root: INFO
     org.springframework.web: DEBUG
