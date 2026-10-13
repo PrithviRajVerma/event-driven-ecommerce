@@ -40,8 +40,7 @@
 - [x] `pgadmin` container (port 5050)
 - [x] `redis` container (redis:7-alpine → port 6379)
 - [x] `kafka` container (`confluentinc/cp-kafka:7.5.0` in KRaft mode → port 9092 internal, port 9094 external)
-- [x] KRaft mode (no ZooKeeper required, single-node controller/broker with cluster ID)
-- [ ] `kafka-ui` or similar tooling for observability
+- [x] `kafka-ui` container (`provectuslabs/kafka-ui:latest` → port 8090) for web-based topic and consumer observability
 
 ### Project Build Setup
 
@@ -807,6 +806,7 @@ COMPLETED (Sprint 11: Production Hardening & Full E2E Integration)
 | Prometheus | 9090 | prometheus-data | — |
 | Grafana | 3000 | grafana-data | — |
 | Zipkin | 9411 | in-memory | — |
+| Kafka UI | 8090 | — | — |
 | pgAdmin | 5050 | pgadmin-data | — |
 | Redis | 6379 | — | — |
 | Kafka | 9092 (internal) / 9094 (external) | kafka-data | — |
