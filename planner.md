@@ -211,11 +211,17 @@ To prevent dual-write bugs between database transactions and Kafka message publi
   ├── [x] Saga compensation flows (`SagaCompensationConsumer` releasing reservations on `payment.failed` or `order.cancelled`)
   └── [x] Comprehensive test suites (OutboxServiceTest, OutboxPublisherTest, SagaCompensationConsumerTest across modules)
 
-[🟢 SPRINT 10] Notification Service & API Gateway
-  ├── Spring Cloud Gateway edge routing & CORS
-  └── Notification consumer & email delivery templates
+[✅ SPRINT 10] Notification Service & API Gateway
+  ├── [x] API Gateway (:8080) reverse proxying to all downstream services (`/api/v1/auth`, `/products`, `/orders`, `/payments`, `/inventory`, `/notifications`)
+  ├── [x] Centralized CORS filter & `X-Correlation-ID` tracing header filter
+  ├── [x] Redis-backed rate limiter with in-memory fallback
+  ├── [x] Notification Service (:8086) with PostgreSQL persistence, Flyway migration (`V1__create_notifications_and_processed_events.sql`)
+  ├── [x] Kafka consumer (`NotificationEventConsumer`) listening to `order.created`, `payment.completed`, `payment.failed`, and `order.cancelled`
+  ├── [x] Consumer idempotency via `processed_events` & `IdempotencyService`
+  ├── [x] Mock email dispatcher & notification REST inspection controller (`/api/v1/notifications`)
+  └── [x] Comprehensive test suites (100% pass across gateway and notification services)
 
-[⚪ SPRINT 11] Production Hardening & Full E2E Integration
+[🟢 SPRINT 11] Production Hardening & Full E2E Integration
   ├── Observability: Actuator, Micrometer Prometheus metrics, Distributed Tracing
   └── Complete End-to-End integration test covering registration to order completion
 ```
@@ -224,7 +230,7 @@ To prevent dual-write bugs between database transactions and Kafka message publi
 
 ## 🎯 6. Immediate Next Steps
 
-1. **Sprint 10 (Notification Service & API Gateway)**:
-   - Implement Notification Service (`services/notification-service`): Kafka consumer for `order.created`, `payment.completed`, `payment.failed`, and simulated email notifications.
-   - Implement API Gateway (`services/api-gateway`): Spring Cloud Gateway routing rules, CORS configuration, rate limiter filter integration, and unified entry point on port 8080.
-   - Comprehensive unit and integration test suite for gateway routing and notification processing.
+1. **Sprint 11 (Production Hardening & Full E2E Integration)**:
+   - Configure Spring Boot Actuator, Micrometer metrics, and Prometheus scrape endpoints across services.
+   - Configure distributed tracing propagation (OpenTelemetry / Micrometer Tracing).
+   - Write comprehensive End-to-End integration test suite testing the full lifecycle: User Registration ➔ Login ➔ Browse Catalog ➔ Add to Cart ➔ Checkout ➔ Inventory Reservation ➔ Payment ➔ Confirmation & Notification.

@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-10-14
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL · Kafka · Redis · Docker · JWT · OAuth2
-> **Status:** 🚧 Active Development — Auth, Product, Inventory, Order, Payment, and Sprint 9 Distributed Patterns (Transactional Outbox, Consumer Idempotency, Saga Compensation) complete; Sprint 10 (Notification Service & API Gateway) next
+> **Status:** 🚧 Active Development — Auth, Product, Inventory, Order, Payment, Distributed Patterns (Sprint 9), Notification Service and API Gateway (Sprint 10) complete; Sprint 11 (Observability, Hardening & E2E Integration) next
 
 ---
 
@@ -16,14 +16,14 @@
 | Inventory Service | ✅ Done (REST, Sagas & Outbox Complete) | ~95% |
 | Order Service | ✅ Done (Cart, Checkout, Sagas & Outbox Complete) | ~95% |
 | Payment Service | ✅ Done (REST, Outbox & Idempotency Complete) | ~95% |
-| Notification Service | 🔴 Stub only | ~3% |
-| API Gateway | 🔴 Stub only | ~3% |
+| Notification Service | ✅ Done (Postgres, Sagas & Idempotency Complete) | ~95% |
+| API Gateway | ✅ Done (Edge Routing, CORS, Rate Limiting & Tracing) | ~95% |
 | Kafka / Event Bus | ✅ Done (KRaft, Contracts, Producers & Consumers) | ~95% |
 | Transactional Outbox | ✅ Done (Migrations, OutboxService & OutboxPublisher Relays) | ~95% |
 | Saga Workflows | ✅ Done (Choreographed Sagas & Compensating Transactions) | ~95% |
 | Idempotency | ✅ Done (Processed Events Deduplication Tables & Services) | ~95% |
 | Observability | 🟡 Partial | ~25% |
-| Testing | 🟢 Passing | ~85% |
+| Testing | 🟢 Passing | ~90% |
 
 ---
 
@@ -447,65 +447,79 @@
 
 ---
 
-## 🔔 Phase 7 — Notification Service (`services/notification-service` · port TBD)
+## 🔔 Phase 7 — Notification Service (`services/notification-service` · port 8086)
 
-> **Status: Stub Only** — Only the Spring Boot application entry point and a minimal `application.yaml` exist.
+> **Status: ✅ Complete** — Event-driven customer communications microservice with PostgreSQL persistence, Flyway migrations, Kafka consumers for order & payment sagas, consumer idempotency, mock email delivery, and REST audit inspection endpoints.
 
-### Scaffold
+### Scaffold & Configuration
 
-- [x] `NotificationServiceApplication.java` (main class only)
-- [x] `application.yaml` (empty)
-- [ ] `build.gradle.kts` — full dependency list (Spring Web, Kafka, Mail)
+- [x] `NotificationServiceApplication.java`
+- [x] `application.yaml` configured on port 8086 with PostgreSQL (`notification_db:5438`), Flyway, and Kafka consumer group
+- [x] `build.gradle.kts` — Spring WebMvc, JPA, Flyway, PostgreSQL, Kafka, Event Contracts, Validation, OpenAPI Swagger UI
 
-### Domain
+### Database & Migrations
 
-- [ ] `Notification` entity (id, type, recipient, status, payload, timestamps)
-- [ ] `NotificationType` enum (`ORDER_CONFIRMED`, `PAYMENT_CONFIRMED`, `PAYMENT_FAILED`, etc.)
+- [x] `V1__create_notifications_and_processed_events.sql` — `notifications` and `processed_events` deduplication tables with indexes
 
-### Service Layer
+### Domain & Persistence
 
-- [ ] `sendOrderConfirmationEmail(UUID orderId)`
-- [ ] `sendPaymentConfirmationEmail(UUID paymentId)`
-- [ ] `sendPaymentFailureEmail(UUID paymentId)`
+- [x] `Notification` entity (id, order_id, customer_id, recipient_email, notification_type, subject, content, status, sent_at, created_at)
+- [x] `NotificationType` enum (`ORDER_CREATED`, `PAYMENT_COMPLETED`, `PAYMENT_FAILED`, `ORDER_CANCELLED`)
+- [x] `NotificationStatus` enum (`PENDING`, `SENT`, `FAILED`)
+- [x] `NotificationRepository` (query by customer ID and order ID)
+
+### Consumer Idempotency
+
+- [x] `ProcessedEvent` entity & `ProcessedEventRepository`
+- [x] `IdempotencyService` preventing duplicate email deliveries on Kafka consumer retries or rebalances
+
+### Service & Email Delivery Layer
+
+- [x] `EmailService` interface and `MockEmailService` dispatching formatted email notifications
+- [x] `NotificationService` handling `handleOrderCreated`, `handlePaymentCompleted`, `handlePaymentFailed`, `handleOrderCancelled`
+- [x] Customer and order notification history query methods
 
 ### Kafka Integration
 
-- [ ] Consume `OrderCreated` event
-- [ ] Consume `PaymentConfirmed` event
-- [ ] Consume `PaymentFailed` event
+- [x] `NotificationEventConsumer` listening to `order.created`, `payment.completed`, `payment.failed`, and `order.cancelled` with idempotency guardrails
 
-### Email Delivery
+### REST Controller & API Docs
 
-- [ ] SMTP / mail provider configured
-- [ ] Email templates (HTML)
+- [x] `NotificationController` (`/api/v1/notifications`)
+- [x] `GET /api/v1/notifications/customer/{customerId}`
+- [x] `GET /api/v1/notifications/order/{orderId}`
+- [x] OpenAPI 3.1 Swagger annotations
 
 ---
 
-## 🌐 Phase 8 — API Gateway (`services/api-gateway` · port TBD)
+## 🌐 Phase 8 — API Gateway (`services/api-gateway` · port 8080)
 
-> **Status: Stub Only** — Only the Spring Boot application entry point and a minimal `application.yaml` exist.
+> **Status: ✅ Complete** — Unified edge entry point for the e-commerce platform handling dynamic path routing, reverse proxying, centralized CORS, distributed tracing correlation IDs, and Redis-backed rate limiting with in-memory fallback.
 
-### Scaffold
+### Scaffold & Configuration
 
-- [x] `ApiGatewayApplication.java` (main class only)
-- [x] `application.yaml` (empty)
-- [ ] `build.gradle.kts` — Spring Cloud Gateway dependency
+- [x] `ApiGatewayApplication.java` with `@ConfigurationPropertiesScan`
+- [x] `application.yaml` configured on port 8080 with route definitions, CORS settings, and rate limiting rules
+- [x] `build.gradle.kts` — Spring WebMvc, Redis, Validation, Lombok
 
-### Routing
+### Dynamic Routing & Reverse Proxying
 
-- [ ] Route: `auth-service` (`/auth/**`)
-- [ ] Route: `product-service` (`/products/**`)
-- [ ] Route: `order-service` (`/orders/**`)
-- [ ] Route: `inventory-service` (`/inventory/**`)
-- [ ] Route: `payment-service` (`/payments/**`)
+- [x] `GatewayProperties` type-safe configuration mapping route prefixes to downstream target URIs
+- [x] `GatewayProxyService` resolving routes, stripping hop-by-hop headers, injecting correlation headers, and relaying request/response payloads
+- [x] Route: `auth-service` (`/api/v1/auth/**` ➔ port 8081)
+- [x] Route: `product-service` (`/api/v1/products/**`, `/api/v1/categories/**` ➔ port 8082)
+- [x] Route: `order-service` (`/api/v1/orders/**`, `/api/v1/cart/**`, `/api/v1/wishlist/**` ➔ port 8083)
+- [x] Route: `payment-service` (`/api/v1/payments/**` ➔ port 8084)
+- [x] Route: `inventory-service` (`/api/v1/inventory/**` ➔ port 8085)
+- [x] Route: `notification-service` (`/api/v1/notifications/**` ➔ port 8086)
+- [x] Route discovery endpoint (`GET /api/v1/gateway/routes`)
 
 ### Edge Concerns
 
-- [ ] JWT validation at gateway level (optional — currently done per-service)
-- [ ] Rate limiting at gateway
-- [ ] Request/response logging filter
-- [ ] CORS headers at gateway
-- [ ] Circuit breaker (Resilience4j)
+- [x] `CorrelationIdFilter` (`OncePerRequestFilter`) generating and propagating `X-Correlation-ID` header across all downstream calls
+- [x] Centralized `CorsConfig` allowing origins, methods, headers, credentials, and exposed headers
+- [x] `RateLimiterService` enforcing request throttling (120 req/min) via Redis with in-memory fallback returning HTTP 429
+- [x] `GatewayController` mapping all `/api/v1/**` requests with rate limit protection and proxy delegation
 
 ---
 
@@ -769,15 +783,19 @@ COMPLETED (Sprint 8: Payment Service & Saga Integration)
  ├── [x] Payment Service → publish payment.completed / payment.failed
  └── [x] Comprehensive test suites (21 unit and slice tests passing)
 
-NOW (Sprint 9: Distributed Patterns — Outbox, Sagas & Idempotency)
- ├── Transactional Outbox per service (Order, Inventory, Payment)
- ├── Idempotency tables (`processed_events`) + duplicate checks per consumer
- └── Saga compensation flows (Inventory release on payment failure)
+COMPLETED (Sprint 9: Distributed Patterns — Outbox, Sagas & Idempotency)
+ ├── [x] Transactional Outbox per service (Order, Inventory, Payment)
+ ├── [x] Idempotency tables (`processed_events`) + duplicate checks per consumer
+ └── [x] Saga compensation flows (Inventory release on payment failure)
 
-FINALLY (Hardening)
- ├── Observability stack (Prometheus, Grafana, Tracing)
- ├── Full end-to-end test coverage
- └── API Gateway routing + edge concerns
+COMPLETED (Sprint 10: Notification Service & API Gateway)
+ ├── [x] Notification Service (PostgreSQL 5438, Flyway V1, Kafka saga consumers, email service, REST)
+ ├── [x] API Gateway edge routing (/api/v1/auth, /products, /orders, /payments, /inventory, /notifications)
+ └── [x] Centralized CORS, correlation ID tracing, and rate limiting (Redis + in-memory fallback)
+
+FINALLY (Sprint 11: Production Hardening & Full E2E Integration)
+ ├── Observability stack (Prometheus, Grafana, Distributed Tracing)
+ └── Full end-to-end integration test coverage
 ```
 
 ---
@@ -786,12 +804,13 @@ FINALLY (Hardening)
 
 | Service | Port | Database | DB Port |
 |---|---|---|---|
+| API Gateway | 8080 | Redis (Rate Limiter) | 6379 |
 | Auth Service | 8081 | auth_db | 5433 |
 | Product Service | 8082 | product_db | 5434 |
-| Order Service | 8083 | order_db | 5435 |
-| Inventory Service | 8085 | inventory_db | 5436 |
+| Order Service | 8083 | order_db, Redis | 5435, 6379 |
 | Payment Service | 8084 | payment_db | 5437 |
-| API Gateway | TBD | — | — |
+| Inventory Service | 8085 | inventory_db | 5436 |
+| Notification Service | 8086 | notification_db | 5438 |
 | pgAdmin | 5050 | — | — |
-| Redis | — | — | 6379 |
+| Redis | 6379 | — | — |
 | Kafka | 9092 (internal) / 9094 (external) | — | — |
