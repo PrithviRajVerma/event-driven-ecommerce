@@ -33,6 +33,12 @@ class OrderCreatedConsumerTest {
     @Mock
     private InventoryEventProducer inventoryEventProducer;
 
+    @Mock
+    private com.eventdriven.inventory.idempotency.IdempotencyService idempotencyService;
+
+    @Mock
+    private com.eventdriven.inventory.outbox.OutboxService outboxService;
+
     @InjectMocks
     private OrderCreatedConsumer orderCreatedConsumer;
 
@@ -148,6 +154,22 @@ class OrderCreatedConsumerTest {
 
         OrderCreatedEvent invalidEvent = new OrderCreatedEvent();
         orderCreatedConsumer.handleOrderCreated(invalidEvent);
+        verifyNoInteractions(inventoryService, inventoryEventProducer);
+    }
+
+    @Test
+    @DisplayName("Skips processing when event was already processed")
+    void handleOrderCreated_DuplicateEvent_Skipped() {
+        UUID eventId = UUID.randomUUID();
+        OrderCreatedEvent event = OrderCreatedEvent.builder()
+                .eventId(eventId)
+                .orderId(UUID.randomUUID())
+                .build();
+
+        when(idempotencyService.isAlreadyProcessed(eventId)).thenReturn(true);
+
+        orderCreatedConsumer.handleOrderCreated(event);
+
         verifyNoInteractions(inventoryService, inventoryEventProducer);
     }
 }

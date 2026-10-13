@@ -4,6 +4,8 @@ import com.eventdriven.events.KafkaTopics;
 import com.eventdriven.events.inventory.InventoryReservedEvent;
 import com.eventdriven.events.inventory.ReservationFailedEvent;
 import com.eventdriven.events.order.OrderCreatedEvent;
+import com.eventdriven.inventory.idempotency.IdempotencyService;
+import com.eventdriven.inventory.outbox.OutboxService;
 import com.eventdriven.inventory.producer.InventoryEventProducer;
 import com.eventdriven.inventory.service.InventoryService;
 import lombok.RequiredArgsConstructor;
@@ -18,16 +20,25 @@ import java.util.List;
 @RequiredArgsConstructor
 public class OrderCreatedConsumer {
 
+    private static final String CONSUMER_GROUP = "inventory-service-group";
+
     private final InventoryService inventoryService;
     private final InventoryEventProducer inventoryEventProducer;
+    private final IdempotencyService idempotencyService;
+    private final OutboxService outboxService;
 
     @KafkaListener(
             topics = KafkaTopics.ORDER_CREATED,
-            groupId = "${spring.kafka.consumer.group-id:inventory-service-group}"
+            groupId = "${spring.kafka.consumer.group-id:" + CONSUMER_GROUP + "}"
     )
     public void handleOrderCreated(OrderCreatedEvent event) {
         if (event == null || event.getOrderId() == null) {
             log.warn("Received invalid or null OrderCreatedEvent: {}", event);
+            return;
+        }
+
+        if (event.getEventId() != null && idempotencyService.isAlreadyProcessed(event.getEventId())) {
+            log.warn("Duplicate OrderCreatedEvent {} detected for order {}. Skipping.", event.getEventId(), event.getOrderId());
             return;
         }
 
@@ -47,6 +58,11 @@ public class OrderCreatedConsumer {
                     .build();
 
             inventoryEventProducer.publishInventoryReserved(reservedEvent);
+            outboxService.saveEvent("INVENTORY", event.getOrderId().toString(), KafkaTopics.INVENTORY_RESERVED, reservedEvent);
+
+            if (event.getEventId() != null) {
+                idempotencyService.markAsProcessed(event.getEventId(), event.getEventType(), CONSUMER_GROUP);
+            }
             log.info("Successfully processed order {} and published InventoryReservedEvent", event.getOrderId());
         } catch (Exception ex) {
             log.error("Failed to reserve inventory for order {}: {}", event.getOrderId(), ex.getMessage());
@@ -57,6 +73,11 @@ public class OrderCreatedConsumer {
                     .build();
 
             inventoryEventProducer.publishReservationFailed(failedEvent);
+            outboxService.saveEvent("INVENTORY", event.getOrderId().toString(), KafkaTopics.INVENTORY_RESERVATION_FAILED, failedEvent);
+
+            if (event.getEventId() != null) {
+                idempotencyService.markAsProcessed(event.getEventId(), event.getEventType(), CONSUMER_GROUP);
+            }
             log.info("Published ReservationFailedEvent for order {}", event.getOrderId());
         }
     }

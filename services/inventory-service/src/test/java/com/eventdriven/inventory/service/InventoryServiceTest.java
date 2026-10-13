@@ -34,6 +34,9 @@ class InventoryServiceTest {
     @Mock
     private InventoryRepository inventoryRepository;
 
+    @Mock
+    private com.eventdriven.inventory.repository.OrderReservationRepository orderReservationRepository;
+
     @InjectMocks
     private InventoryService inventoryService;
 
@@ -320,6 +323,42 @@ class InventoryServiceTest {
                             OrderCreatedEvent.OrderItem.builder().productId(productId).quantity(1).build()
                     ))
             );
+        }
+
+        @Test
+        void releaseOrderInventory_success() {
+            UUID orderId = UUID.randomUUID();
+            com.eventdriven.inventory.domain.OrderReservation res = com.eventdriven.inventory.domain.OrderReservation.builder()
+                    .orderId(orderId)
+                    .productId(productId)
+                    .quantity(3)
+                    .status(com.eventdriven.inventory.domain.ReservationStatus.RESERVED)
+                    .build();
+
+            when(orderReservationRepository.findByOrderIdAndStatus(orderId, com.eventdriven.inventory.domain.ReservationStatus.RESERVED))
+                    .thenReturn(List.of(res));
+            when(inventoryRepository.findByProductId(productId)).thenReturn(java.util.Optional.of(inventory));
+
+            var released = inventoryService.releaseOrderInventory(orderId, "Payment failed");
+
+            assertEquals(1, released.size());
+            assertEquals(13, inventory.getAvailableQuantity());
+            assertEquals(2, inventory.getReservedQuantity());
+            assertEquals(com.eventdriven.inventory.domain.ReservationStatus.RELEASED, res.getStatus());
+            verify(orderReservationRepository).save(res);
+            verify(inventoryRepository).save(inventory);
+        }
+
+        @Test
+        void releaseOrderInventory_noActiveReservations_returnsEmpty() {
+            UUID orderId = UUID.randomUUID();
+            when(orderReservationRepository.findByOrderIdAndStatus(orderId, com.eventdriven.inventory.domain.ReservationStatus.RESERVED))
+                    .thenReturn(List.of());
+
+            var released = inventoryService.releaseOrderInventory(orderId, "Cancellation");
+
+            assertTrue(released.isEmpty());
+            verify(inventoryRepository, never()).save(any());
         }
     }
 }

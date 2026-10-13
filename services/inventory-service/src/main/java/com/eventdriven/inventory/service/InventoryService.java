@@ -20,12 +20,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import com.eventdriven.events.inventory.InventoryReleasedEvent;
+import com.eventdriven.inventory.domain.OrderReservation;
+import com.eventdriven.inventory.domain.ReservationStatus;
+import com.eventdriven.inventory.repository.OrderReservationRepository;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class InventoryService {
 
     private final InventoryRepository inventoryRepository;
+    private final OrderReservationRepository orderReservationRepository;
 
     @Transactional
     public InventoryResponse createInventory(CreateInventoryRequest request) {
@@ -183,6 +189,13 @@ public class InventoryService {
 
             inventoryRepository.save(inventory);
 
+            orderReservationRepository.save(OrderReservation.builder()
+                    .orderId(orderId)
+                    .productId(item.getProductId())
+                    .quantity(item.getQuantity())
+                    .status(ReservationStatus.RESERVED)
+                    .build());
+
             reservedItems.add(InventoryReservedEvent.ReservedItem.builder()
                     .productId(item.getProductId())
                     .quantity(item.getQuantity())
@@ -191,6 +204,45 @@ public class InventoryService {
 
         log.info("Successfully reserved inventory for order {} ({} items)", orderId, items.size());
         return reservedItems;
+    }
+
+    @Transactional
+    public List<InventoryReleasedEvent.ReleasedItem> releaseOrderInventory(UUID orderId, String reason) {
+        if (orderId == null) {
+            log.warn("Cannot release inventory for null orderId");
+            return List.of();
+        }
+
+        List<OrderReservation> activeReservations = orderReservationRepository
+                .findByOrderIdAndStatus(orderId, ReservationStatus.RESERVED);
+
+        if (activeReservations.isEmpty()) {
+            log.warn("No active reservations found to release for order {}", orderId);
+            return List.of();
+        }
+
+        List<InventoryReleasedEvent.ReleasedItem> releasedItems = new ArrayList<>();
+
+        for (OrderReservation reservation : activeReservations) {
+            inventoryRepository.findByProductId(reservation.getProductId()).ifPresent(inv -> {
+                inv.setAvailableQuantity(inv.getAvailableQuantity() + reservation.getQuantity());
+                inv.setReservedQuantity(Math.max(0, inv.getReservedQuantity() - reservation.getQuantity()));
+                inv.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+                inventoryRepository.save(inv);
+            });
+
+            reservation.setStatus(ReservationStatus.RELEASED);
+            orderReservationRepository.save(reservation);
+
+            releasedItems.add(InventoryReleasedEvent.ReleasedItem.builder()
+                    .productId(reservation.getProductId())
+                    .quantity(reservation.getQuantity())
+                    .build());
+        }
+
+        log.info("Successfully released inventory for order {} ({} items). Reason: {}",
+                orderId, releasedItems.size(), reason);
+        return releasedItems;
     }
 
     private InventoryResponse toResponse(Inventory inventory) {
