@@ -76,6 +76,21 @@ services:
     networks:
       - ecommerce-network
 
+  notification-db:
+    image: postgres:18.6
+    container_name: ecommerce-notification-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5438:5432"
+    volumes:
+      - notification-db-data:/var/lib/postgresql
+    networks:
+      - ecommerce-network
+
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: ecommerce-pgadmin
@@ -95,6 +110,7 @@ services:
       - order-db
       - inventory-db
       - payment-db
+      - notification-db
 
   redis:
     image: redis:7-alpine
@@ -139,6 +155,7 @@ volumes:
   order-db-data:
   inventory-db-data:
   payment-db-data:
+  notification-db-data:
   pgadmin-data:
   kafka-data:
 

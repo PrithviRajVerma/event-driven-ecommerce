@@ -1,3 +1,66 @@
+server:
+  port: 8080
+
 spring:
   application:
     name: api-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+gateway:
+  routes:
+    auth:
+      path-prefix: /api/v1/auth
+      target-uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+    product:
+      path-prefix: /api/v1/products
+      target-uri: ${PRODUCT_SERVICE_URL:http://localhost:8082}
+    category:
+      path-prefix: /api/v1/categories
+      target-uri: ${PRODUCT_SERVICE_URL:http://localhost:8082}
+    order:
+      path-prefix: /api/v1/orders
+      target-uri: ${ORDER_SERVICE_URL:http://localhost:8083}
+    cart:
+      path-prefix: /api/v1/cart
+      target-uri: ${ORDER_SERVICE_URL:http://localhost:8083}
+    wishlist:
+      path-prefix: /api/v1/wishlist
+      target-uri: ${ORDER_SERVICE_URL:http://localhost:8083}
+    payment:
+      path-prefix: /api/v1/payments
+      target-uri: ${PAYMENT_SERVICE_URL:http://localhost:8084}
+    inventory:
+      path-prefix: /api/v1/inventory
+      target-uri: ${INVENTORY_SERVICE_URL:http://localhost:8085}
+    notification:
+      path-prefix: /api/v1/notifications
+      target-uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8086}
+
+cors:
+  allowed-origins:
+    - "http://localhost:3000"
+    - "http://localhost:5173"
+    - "http://localhost:8080"
+  allowed-methods:
+    - GET
+    - POST
+    - PUT
+    - PATCH
+    - DELETE
+    - OPTIONS
+  allowed-headers:
+    - "*"
+  allow-credentials: true
+
+rate-limiter:
+  enabled: true
+  limit-per-minute: 120
+
+logging:
+  level:
+    root: INFO
+    org.springframework.web: INFO
+    com.eventdriven.gateway: DEBUG
