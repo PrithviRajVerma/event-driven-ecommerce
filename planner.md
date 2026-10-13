@@ -205,12 +205,13 @@ To prevent dual-write bugs between database transactions and Kafka message publi
   ├── [x] Payment REST controller (`/api/v1/payments`) & OpenAPI Swagger documentation
   └── [x] Comprehensive test suites (21 unit and controller slice tests passing)
 
-[🟢 SPRINT 9] Distributed Patterns (Outbox, Sagas & Idempotency)
-  ├── Outbox tables & scheduled publisher relays
-  ├── Processed events deduplication tables
-  └── Saga compensation flows (Inventory release on payment failure)
+[✅ SPRINT 9] Distributed Patterns (Outbox, Sagas & Idempotency)
+  ├── [x] Outbox tables (`outbox_events` in Order, Inventory, Payment) & scheduled publisher relays (`OutboxPublisher`)
+  ├── [x] Processed events deduplication tables (`processed_events` & `IdempotencyService` across consumers)
+  ├── [x] Saga compensation flows (`SagaCompensationConsumer` releasing reservations on `payment.failed` or `order.cancelled`)
+  └── [x] Comprehensive test suites (OutboxServiceTest, OutboxPublisherTest, SagaCompensationConsumerTest across modules)
 
-[⚪ SPRINT 10] Notification Service & API Gateway
+[🟢 SPRINT 10] Notification Service & API Gateway
   ├── Spring Cloud Gateway edge routing & CORS
   └── Notification consumer & email delivery templates
 
@@ -223,8 +224,7 @@ To prevent dual-write bugs between database transactions and Kafka message publi
 
 ## 🎯 6. Immediate Next Steps
 
-1. **Sprint 9 (Distributed Patterns — Outbox, Sagas & Idempotency)**:
-   - Implement `outbox_events` table migrations for Order, Inventory, and Payment services.
-   - Implement scheduled outbox publisher relays reading unpublished events and pushing to Kafka.
-   - Implement `processed_events` deduplication tables and consumer filters for exactly-once processing semantics.
-   - Wire compensating consumer in Inventory Service to release reserved inventory upon `payment.failed` or `order.cancelled`.
+1. **Sprint 10 (Notification Service & API Gateway)**:
+   - Implement Notification Service (`services/notification-service`): Kafka consumer for `order.created`, `payment.completed`, `payment.failed`, and simulated email notifications.
+   - Implement API Gateway (`services/api-gateway`): Spring Cloud Gateway routing rules, CORS configuration, rate limiter filter integration, and unified entry point on port 8080.
+   - Comprehensive unit and integration test suite for gateway routing and notification processing.

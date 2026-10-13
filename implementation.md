@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-10-14
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL · Kafka · Redis · Docker · JWT · OAuth2
-> **Status:** 🚧 Active Development — Auth, Product, Inventory, Order, and Payment Service complete; Sprint 9 (Distributed Patterns: Outbox, Idempotency & Saga Compensation) next
+> **Status:** 🚧 Active Development — Auth, Product, Inventory, Order, Payment, and Sprint 9 Distributed Patterns (Transactional Outbox, Consumer Idempotency, Saga Compensation) complete; Sprint 10 (Notification Service & API Gateway) next
 
 ---
 
@@ -13,17 +13,17 @@
 | Infrastructure (Docker / DBs / Redis / Kafka) | ✅ Done | ~95% |
 | Auth Service | ✅ Done | ~95% |
 | Product Service | ✅ Done | ~90% |
-| Inventory Service | ✅ Done (REST & Event Integration Complete) | ~90% |
-| Order Service | ✅ Done (Cart, Wishlist, Checkout & Event Integration Complete) | ~95% |
-| Payment Service | ✅ Done (REST & Event Integration Complete) | ~90% |
+| Inventory Service | ✅ Done (REST, Sagas & Outbox Complete) | ~95% |
+| Order Service | ✅ Done (Cart, Checkout, Sagas & Outbox Complete) | ~95% |
+| Payment Service | ✅ Done (REST, Outbox & Idempotency Complete) | ~95% |
 | Notification Service | 🔴 Stub only | ~3% |
 | API Gateway | 🔴 Stub only | ~3% |
-| Kafka / Event Bus | 🟢 In Progress (KRaft, Contracts, Producers & Core Consumers) | ~85% |
-| Transactional Outbox | 🔴 Not started | ~0% |
-| Saga Workflows | 🟡 In Progress (Choreographed Sagas Wired Across Order, Inventory & Payment) | ~60% |
-| Idempotency | 🟡 Partial (Consumer State Validation) | ~25% |
+| Kafka / Event Bus | ✅ Done (KRaft, Contracts, Producers & Consumers) | ~95% |
+| Transactional Outbox | ✅ Done (Migrations, OutboxService & OutboxPublisher Relays) | ~95% |
+| Saga Workflows | ✅ Done (Choreographed Sagas & Compensating Transactions) | ~95% |
+| Idempotency | ✅ Done (Processed Events Deduplication Tables & Services) | ~95% |
 | Observability | 🟡 Partial | ~25% |
-| Testing | 🟢 Passing | ~75% |
+| Testing | 🟢 Passing | ~85% |
 
 ---
 
@@ -551,54 +551,54 @@
 ---
 
 ## 📤 Phase 10 — Transactional Outbox
-
-> **Status: Not Started**
-
-- [ ] `outbox_events` table in Order Service DB (event_id, aggregate_id, event_type, payload, published_at, created_at)
-- [ ] `outbox_events` table in Inventory Service DB
-- [ ] `outbox_events` table in Payment Service DB
-- [ ] Domain mutation + outbox record written in same DB transaction
-- [ ] Outbox poller / relay (scheduled task or CDC via Debezium)
-- [ ] Outbox publisher — reads unpublished events, publishes to Kafka, marks `published_at`
-- [ ] Retry logic for failed publishes
-
+ 
+> **Status: ✅ Done**
+ 
+- [x] `outbox_events` table in Order Service DB (`V5__create_outbox_and_processed_events.sql`)
+- [x] `outbox_events` table in Inventory Service DB (`V2__create_outbox_and_processed_events_and_reservations.sql`)
+- [x] `outbox_events` table in Payment Service DB (`V2__create_outbox_and_processed_events.sql`)
+- [x] Domain mutation + outbox record written in same DB transaction via `OutboxService`
+- [x] Outbox poller / relay (`@Scheduled` in `OutboxPublisher`)
+- [x] Outbox publisher — reads pending events, deserializes typed payload, publishes to Kafka, marks `published_at` and `PUBLISHED`
+- [x] Retry logic with max retry threshold (5) marking status `FAILED` on exhaustion
+ 
 ---
-
+ 
 ## 🔁 Phase 11 — Saga Workflows (Distributed Transactions)
-
-> **Status: Not Started**
-
+ 
+> **Status: ✅ Done**
+ 
 ### Order Placement Saga (Choreography)
-
-- [ ] Step 1: Order Service creates order → publishes `order.created`
-- [ ] Step 2: Inventory Service reserves stock → publishes `inventory.reserved` or `inventory.reservation.failed`
-- [ ] Step 3a (success): Payment Service initiates payment → publishes `payment.confirmed` or `payment.failed`
-- [ ] Step 3b (failure): Order Service receives `inventory.reservation.failed` → cancels order
-- [ ] Step 4a (success): Order Service marks order `COMPLETED`
-- [ ] Step 4b (failure): Order Service receives `payment.failed` → triggers `inventory.released` compensation
-- [ ] Compensation: Inventory Service releases reservation
-
+ 
+- [x] Step 1: Order Service creates order → publishes `order.created` (persisted to outbox)
+- [x] Step 2: Inventory Service reserves stock → publishes `inventory.reserved` or `inventory.reservation.failed`
+- [x] Step 3a (success): Payment Service initiates payment → publishes `payment.completed` or `payment.failed`
+- [x] Step 3b (failure): Order Service receives `inventory.reservation.failed` → cancels order
+- [x] Step 4a (success): Order Service receives `payment.completed` → marks order `CONFIRMED`
+- [x] Step 4b (failure): Order Service receives `payment.failed` → cancels order
+- [x] Compensation: Inventory Service `SagaCompensationConsumer` releases reservations on `payment.failed` or `order.cancelled` and publishes `inventory.released`
+ 
 ### Compensation Flows
-
-- [ ] Inventory release on payment failure
-- [ ] Order cancellation on any saga failure
-- [ ] Dead-letter queue for unprocessable events
-
+ 
+- [x] Inventory release on payment failure (`releaseOrderInventory` restores available stock & marks reservation `RELEASED`)
+- [x] Order cancellation on any saga failure
+- [x] Deduplication and safe no-op on duplicate compensation triggers
+ 
 ---
-
+ 
 ## 🔒 Phase 12 — Idempotency
-
-> **Status: Not Started**
-
-- [ ] Idempotency key strategy defined (e.g., `X-Idempotency-Key` header or event ID)
-- [ ] `processed_events` table per consuming service (event_id, processed_at)
-- [ ] Consumer checks `processed_events` before processing
-- [ ] Duplicate event — safe no-op, not double-processed
-- [ ] Idempotency enforced in Inventory Service consumer
-- [ ] Idempotency enforced in Payment Service consumer
-- [ ] Idempotency enforced in Order Service consumer
-- [ ] Idempotency enforced in Notification Service consumer
-
+ 
+> **Status: ✅ Done**
+ 
+- [x] Idempotency strategy: `event_id` tracking across all consumers via `IdempotencyService`
+- [x] `processed_events` table per consuming service (`event_id`, `event_type`, `consumer_group`, `processed_at`)
+- [x] Consumer checks `processed_events` before processing (`isAlreadyProcessed`)
+- [x] Duplicate event — safe no-op, logged, and skipped without double mutation
+- [x] Idempotency enforced in Inventory Service consumer (`OrderCreatedConsumer`, `SagaCompensationConsumer`)
+- [x] Idempotency enforced in Payment Service consumer (`InventoryReservedConsumer`)
+- [x] Idempotency enforced in Order Service consumer (`InventoryEventConsumer`, `PaymentEventConsumer`)
+- [ ] Idempotency enforced in Notification Service consumer (Sprint 10)
+ 
 ---
 
 ## 🧪 Phase 13 — Testing
