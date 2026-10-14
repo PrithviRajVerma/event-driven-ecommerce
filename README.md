@@ -17,7 +17,7 @@ JWT · OAuth2
 ``` text
                               ┌──────────────────┐
                               │   API Gateway    │
-                              │     Planned      │
+                              │    (port 8080)   │
                               └────────┬─────────┘
                                        │
               ┌────────────────────────┼────────────────────────┐
@@ -96,41 +96,24 @@ microservice and distributed-system concepts:
 The project is being developed incrementally.
 
 ### Implemented
+-   **Auth Service (`:8081`):** Email/password registration, login, email verification, refresh-token rotation, session revocation, password reset, Google OAuth2, RBAC, HttpOnly cookies.
+-   **Product Service (`:8082`):** Category/product CRUD, pagination, sorting, soft deletion, search, image URL support, customer/admin API separation.
+-   **Inventory Service (`:8085`):** Stock level tracking, reserved stock management, low-stock threshold alerting, saga-driven reservations, and compensating stock releases.
+-   **Order Service (`:8083`):** Redis-backed Cart & Wishlist, checkout orchestration, order state machine, snapshots, cancellation workflows.
+-   **Payment Service (`:8084`):** Payment lifecycle management, mock payment gateway, transaction logs, success/failure event publishing.
+-   **Notification Service (`:8086`):** Asynchronous email notifications for order & payment sagas, PostgreSQL delivery audit logs, Resend REST API integration, and developer sandbox safety overrides.
+-   **API Gateway (`:8080`):** Centralized edge reverse proxy, dynamic route discovery, CORS configuration, Redis token-bucket rate limiting (120 req/min), and `X-Correlation-ID` distributed tracing injection.
+-   **Kafka Event-Driven Backbone:** KRaft-based Apache Kafka broker, typed `event-contracts` library, event producers and consumers.
+-   **Transactional Outbox Pattern:** Outbox tables in Order, Inventory, and Payment services with scheduled relay background workers guaranteeing at-least-once message delivery.
+-   **Choreographed Sagas:** Distributed order placement saga (`OrderCreated` ➔ `InventoryReserved` ➔ `PaymentCompleted` ➔ `OrderCompleted` + `Notifications`) with compensating transactions (`InventoryReservationFailed` / `PaymentFailed` ➔ `ReleaseInventory` + `OrderCancelled`).
+-   **Consumer Idempotency:** Event deduplication tables (`processed_events`) and idempotency services in every consuming service preventing duplicate execution.
+-   **Kafka Web UI (`:8090`):** Real-time web dashboard for browsing topics, messages, consumer lag, and broker partitions.
 
--   Authentication and security foundation
--   Email/password registration and login
--   Email verification
--   Refresh-token rotation
--   Logout/session revocation
--   Password reset
--   Google OAuth2 login
--   RBAC foundation
--   Redis rate limiting
--   PostgreSQL database-per-service foundation
--   Flyway migrations
--   Product Service
--   Product CRUD
--   Product soft delete
--   Product PUT/PATCH APIs
--   Product image URL support
--   Customer/admin product API separation
-
-### Currently being developed
-
--   Product Service JWT authentication
--   Product Service authorization
--   Order Service
--   Inventory Service
--   Payment Service
--   Kafka event-driven workflows
--   Transactional Outbox
--   Saga workflows
--   Idempotency
--   Notification Service
--   API Gateway
--   Observability
--   Production hardening
--   Full end-to-end testing
+### Currently Being Developed (Sprint 11)
+-   Prometheus & Grafana centralized dashboards & alerting
+-   Zipkin distributed tracing instrumentation across all microservices
+-   Resilience4j Circuit Breakers, Bulkheads & Retry policies
+-   End-to-end integration and load testing
 
 ------------------------------------------------------------------------
 
@@ -320,48 +303,47 @@ workflows.
 
 # Inventory Service
 
-Inventory Service will own stock and reservation state.
+Inventory Service owns stock and reservation state, acting as the single source of truth for stock quantities.
 
-Planned responsibilities:
-
--   Stock management
--   Availability
--   Stock reservation
--   Stock release
--   Inventory confirmation
--   Inventory-related events
-
-The final architecture makes Inventory the source of truth for stock.
+**Implemented Capabilities:**
+-   **Stock Management:** Real-time stock levels, reserved quantities, and low-stock alerting (`inventory_db:5436`).
+-   **REST Endpoints:** `GET /api/v1/inventory/{productId}`, `PUT /api/v1/inventory/{productId}`, `GET /api/v1/inventory/low-stock`.
+-   **Saga Orchestration:**
+    -   Consumes `OrderCreatedEvent` (`order.created`) with `processed_events` idempotency guardrails.
+    -   Reserves inventory atomically and writes `InventoryReservedEvent` to `outbox_events`.
+    -   If stock is insufficient, emits `InventoryReservationFailedEvent` (`inventory.reservation.failed`).
+    -   Consumes `OrderCancelledEvent` (`order.cancelled`) to execute compensating inventory releases.
 
 ------------------------------------------------------------------------
 
 # Order Service
 
-Order Service will own order state and lifecycle.
+Order Service manages customer carts, wishlists, and order lifecycle state machines.
 
-Planned responsibilities:
-
--   Order creation
--   Order retrieval
--   Order status transitions
--   Order item snapshots
--   Customer ownership
--   Coordination with Inventory and Payment
+**Implemented Capabilities:**
+-   **Cart & Wishlist:** Redis-backed temporary state management (`localhost:6379`).
+-   **Order Management:** Checkout orchestration, immutable order item price/name snapshots, customer ownership verification (`order_db:5435`).
+-   **REST Endpoints:** Checkout (`POST /api/v1/orders/checkout`), order lookup (`GET /api/v1/orders/{id}`), customer history (`GET /api/v1/orders/customer/{customerId}`), order cancellation (`POST /api/v1/orders/{id}/cancel`).
+-   **Transactional Outbox & Saga Coordination:**
+    -   Order placement and `OrderCreatedEvent` written in a single database transaction.
+    -   Scheduled `OutboxPublisher` background worker relays outbox events to Kafka (`order.created`).
+    -   Consumes `InventoryReservedEvent`, `InventoryReservationFailedEvent`, `PaymentCompletedEvent`, and `PaymentFailedEvent` with idempotency deduplication.
+    -   Transitions order state (`PENDING` ➔ `CONFIRMED` or `CANCELLED`).
 
 ------------------------------------------------------------------------
 
 # Payment Service
 
-Payment Service will own payment state.
+Payment Service manages payment transactions and external payment-provider integration boundaries.
 
-Planned responsibilities:
-
--   Payment creation
--   Payment status
--   Payment confirmation
--   Payment failure
--   Payment events
--   External payment-provider integration boundary
+**Implemented Capabilities:**
+-   **Transaction Records:** Idempotent payment processing, currency tracking, transaction limits (`payment_db:5437`).
+-   **REST Endpoints:** Process payment (`POST /api/v1/payments/process`), lookup by ID (`GET /api/v1/payments/{paymentId}`), lookup by order (`GET /api/v1/payments/order/{orderId}`).
+-   **Saga Integration:**
+    -   Consumes `InventoryReservedEvent` (`inventory.reserved`) with idempotent deduplication.
+    -   Executes payment rules ($5,000 transaction limits, card simulations).
+    -   Writes payment records and `PaymentCompletedEvent` / `PaymentFailedEvent` to `outbox_events` atomically.
+    -   Scheduled `OutboxPublisher` broadcasts events to Kafka.
 
 ------------------------------------------------------------------------
 
@@ -385,6 +367,25 @@ export RESEND_API_KEY="re_123456789"
 export RESEND_FROM_EMAIL="onboarding@resend.dev" # or verified domain e.g. orders@yourdomain.com
 export RESEND_DEFAULT_RECIPIENT="you@example.com" # overrides recipient for sandbox testing
 ```
+
+------------------------------------------------------------------------
+
+# API Gateway
+
+The API Gateway (`port 8080`) provides a unified edge entry point for all client requests across the microservices platform.
+
+**Implemented Capabilities:**
+-   **Dynamic Reverse Proxy:** Routes requests to downstream microservices based on prefix matching:
+    -   `/api/v1/auth/**` ➔ Auth Service (`:8081`)
+    -   `/api/v1/products/**`, `/api/v1/categories/**` ➔ Product Service (`:8082`)
+    -   `/api/v1/orders/**`, `/api/v1/cart/**`, `/api/v1/wishlist/**` ➔ Order Service (`:8083`)
+    -   `/api/v1/payments/**` ➔ Payment Service (`:8084`)
+    -   `/api/v1/inventory/**` ➔ Inventory Service (`:8085`)
+    -   `/api/v1/notifications/**` ➔ Notification Service (`:8086`)
+-   **Route Discovery:** `GET /api/v1/gateway/routes` exposes active routes and target URIs.
+-   **Edge Rate Limiting:** Enforces token-bucket rate limiting (120 req/min) via Redis with in-memory fallback, returning HTTP 429 Too Many Requests when limits are exceeded.
+-   **Centralized CORS:** Pre-configured cross-origin resource sharing allowing frontend clients with credentials support.
+-   **Distributed Tracing Propagation:** `CorrelationIdFilter` generates and injects `X-Correlation-ID` headers to trace requests across downstream services.
 
 ------------------------------------------------------------------------
 

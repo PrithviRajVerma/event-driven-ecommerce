@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-10-14
 > **Stack:** Java 21 · Spring Boot 4.1.1 · PostgreSQL · Kafka · Redis · Docker · JWT · OAuth2
-> **Status:** 🚧 Active Development — Auth, Product, Inventory, Order, Payment, Distributed Patterns (Sprint 9), Notification Service and API Gateway (Sprint 10) complete; Sprint 11 (Observability, Hardening & E2E Integration) next
+> **Status:** 🚧 Active Development — Auth, Product, Inventory, Order, Payment, Distributed Patterns (Sprint 9), Notification Service (with Resend REST API) and API Gateway (Sprint 10) complete; Sprint 11 (Observability, Hardening & E2E Integration) next
 
 ---
 
@@ -16,7 +16,7 @@
 | Inventory Service | ✅ Done (REST, Sagas & Outbox Complete) | ~95% |
 | Order Service | ✅ Done (Cart, Checkout, Sagas & Outbox Complete) | ~95% |
 | Payment Service | ✅ Done (REST, Outbox & Idempotency Complete) | ~95% |
-| Notification Service | ✅ Done (Postgres, Sagas & Idempotency Complete) | ~95% |
+| Notification Service | ✅ Done (Postgres, Sagas, Idempotency & Resend REST Complete) | ~95% |
 | API Gateway | ✅ Done (Edge Routing, CORS, Rate Limiting & Tracing) | ~95% |
 | Kafka / Event Bus | ✅ Done (KRaft, Contracts, Producers & Consumers) | ~95% |
 | Transactional Outbox | ✅ Done (Migrations, OutboxService & OutboxPublisher Relays) | ~95% |
@@ -474,7 +474,14 @@
 
 ### Service & Email Delivery Layer
 
-- [x] `EmailService` interface and `MockEmailService` dispatching formatted email notifications
+- [x] `EmailService` interface for pluggable email engines
+- [x] `ResendEmailService` integrating with Resend REST API (`POST https://api.resend.com/emails`) using Spring's `RestClient`
+- [x] `ResendProperties` type-safe configuration binding API key, sender email, sandbox recipient override, and API endpoint
+- [x] `EmailServiceConfig` conditional wiring:
+  - `@ConditionalOnExpression` instantiating `ResendEmailService` when `resend.api-key` is non-empty
+  - `@ConditionalOnMissingBean` falling back to `MockEmailService` for local development and zero-config CI/CD tests
+- [x] Developer sandbox recipient override via `RESEND_DEFAULT_RECIPIENT` (routes all test notifications to account owner's email)
+- [x] `MockEmailService` logging formatted email notifications to console
 - [x] `NotificationService` handling `handleOrderCreated`, `handlePaymentCompleted`, `handlePaymentFailed`, `handleOrderCancelled`
 - [x] Customer and order notification history query methods
 
@@ -559,7 +566,7 @@
 - [x] Order Service ← `inventory.reserved` (`InventoryEventConsumer`)
 - [x] Order Service ← `inventory.reservation.failed` (`InventoryEventConsumer`)
 - [x] Order Service ← `payment.completed`, `payment.failed` (`PaymentEventConsumer`)
-- [ ] Notification Service ← `order.created`, `payment.completed`, `payment.failed`
+- [x] Notification Service ← `order.created`, `payment.completed`, `payment.failed`, `order.cancelled` (`NotificationEventConsumer`)
 
 ---
 
@@ -610,7 +617,7 @@
 - [x] Idempotency enforced in Inventory Service consumer (`OrderCreatedConsumer`, `SagaCompensationConsumer`)
 - [x] Idempotency enforced in Payment Service consumer (`InventoryReservedConsumer`)
 - [x] Idempotency enforced in Order Service consumer (`InventoryEventConsumer`, `PaymentEventConsumer`)
-- [ ] Idempotency enforced in Notification Service consumer (Sprint 10)
+- [x] Idempotency enforced in Notification Service consumer (`NotificationEventConsumer` with `processed_events` deduplication table)
  
 ---
 
@@ -670,8 +677,12 @@
 
 ### Notification Service Tests
 
-- [x] Context load stub only
-- [ ] No meaningful tests yet
+- [x] Unit tests for `NotificationService` (`NotificationServiceTest` — 5 tests covering order created, payment completed, payment failed, order cancelled, and customer notifications)
+- [x] Unit tests for `NotificationEventConsumer` (`NotificationEventConsumerTest` — 4 tests verifying Kafka consumer processing and idempotency duplicate skipping)
+- [x] Controller slice tests for `NotificationController` (`NotificationControllerTest` — 4 tests for customer lookup, order lookup, and 404 not found handling)
+- [x] End-to-end saga simulation test (`EndToEndNotificationSagaTest` — full lifecycle integration test)
+- [x] Unit tests for `ResendEmailService` (`ResendEmailServiceTest` — 3 tests covering REST payload format, Bearer authorization, sandbox recipient override, and API error response handling)
+- [x] Unit tests for `EmailServiceConfig` (`EmailServiceConfigTest` — 3 tests verifying conditional bean loading of `ResendEmailService` vs. `MockEmailService`)
 
 ### Kafka Tests
 
