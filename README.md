@@ -89,6 +89,8 @@ microservice and distributed-system concepts:
 -   Observability
 -   Automated and integration testing
 
+See [decision.md](file:///home/assassin/MY_WORK/Code/resume-projects/event-driven-eccomerce/decision.md) for detailed Architectural Decision Records (ADRs) explaining every major design decision and trade-off in this codebase.
+
 ------------------------------------------------------------------------
 
 # 🚧 Project Status
