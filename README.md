@@ -115,9 +115,10 @@ The project is being developed incrementally.
 -   **Observability & Tracing:** Actuator Prometheus metrics scraping (`:9090`), Zipkin distributed tracing (`:9411`), and automated Grafana dashboards (`:3000`).
 -   **Consumer Resilience:** Poison-pill isolation and retry backoff policies configured via `KafkaConsumerConfig`.
 
-### Currently Being Developed (Sprint 11 Hardening)
--   Resilience4j Circuit Breakers & Fallbacks
--   Kubernetes Deployment Manifests & Helm Charts
+### Future Enhancements / Extensions
+-   Resilience4j Circuit Breakers & Bulkheads (external email / payment integrations)
+-   Elasticsearch cluster for full-text product search and faceted filtering
+-   Kubernetes Helm charts for cloud-native enterprise deployments
 
 ------------------------------------------------------------------------
 
@@ -778,15 +779,21 @@ docker compose -f docker-compose.full.yml up --build -d
 docker compose -f docker-compose.full.yml ps
 ```
 
-**Port Access Matrix:**
-| Service / Tool | Port | Endpoint / URL |
-|---|---|---|
-| API Gateway | 8080 | http://localhost:8080 |
-| Kafka Web UI | 8090 | http://localhost:8090 |
-| Grafana Dashboards | 3000 | http://localhost:3000 (`admin`/`admin`) |
-| Prometheus | 9090 | http://localhost:9090 |
-| Zipkin Tracing | 9411 | http://localhost:9411 |
-| pgAdmin | 5050 | http://localhost:5050 |
+**Port & Documentation Matrix:**
+| Component | Port | Endpoint / URL | Swagger UI / Documentation |
+| :--- | :--- | :--- | :--- |
+| **API Gateway** | 8080 | http://localhost:8080 | Edge reverse proxy for all `/api/v1/*` routes |
+| **Auth Service** | 8081 | http://localhost:8081 | [Swagger UI](http://localhost:8081/swagger-ui.html) (`/v3/api-docs`) |
+| **Product Service** | 8082 | http://localhost:8082 | [Swagger UI](http://localhost:8082/swagger-ui.html) (`/v3/api-docs`) |
+| **Order Service** | 8083 | http://localhost:8083 | [Swagger UI](http://localhost:8083/swagger-ui.html) (`/v3/api-docs`) |
+| **Payment Service** | 8084 | http://localhost:8084 | [Swagger UI](http://localhost:8084/swagger-ui.html) (`/v3/api-docs`) |
+| **Inventory Service** | 8085 | http://localhost:8085 | [Swagger UI](http://localhost:8085/swagger-ui.html) (`/v3/api-docs`) |
+| **Notification Service** | 8086 | http://localhost:8086 | Resend REST API / Audit Delivery Logs |
+| **Kafka Web UI** | 8090 | http://localhost:8090 | Topic browser, partitions & consumer lag |
+| **Grafana Dashboards** | 3000 | http://localhost:3000 | Pre-built dashboards (`admin`/`admin`) |
+| **Prometheus** | 9090 | http://localhost:9090 | Metric scrapers & target health explorer |
+| **Zipkin Tracing** | 9411 | http://localhost:9411 | Distributed trace waterfall visualization |
+| **pgAdmin** | 5050 | http://localhost:5050 | Database UI (`admin@ecommerce.com` / `admin`) |
 
 ### Option 2: Local Microservices with Docker Infrastructure
 
@@ -820,14 +827,28 @@ See the complete step-by-step guide: [Managed Cloud PaaS Deployment Guide](file:
 ``` text
 event-driven-ecommerce/
 │
-├── auth-service/
-├── product-service/
-├── order-service/
-├── inventory-service/
-├── payment-service/
-├── notification-service/
-├── api-gateway/
-├── docker-compose.yml
+├── libs/
+│   └── event-contracts/        # Shared event contracts, topics & payload POJOs
+│
+├── services/
+│   ├── api-gateway/            # Spring Cloud Gateway edge reverse proxy (:8080)
+│   ├── auth-service/           # JWT, OAuth2, RBAC, session management (:8081)
+│   ├── product-service/        # Catalog, categories, pagination, soft-delete (:8082)
+│   ├── order-service/          # Carts, checkouts, saga initiator (:8083)
+│   ├── payment-service/        # Payment processing & saga worker (:8084)
+│   ├── inventory-service/      # Optimistic locking stock reservation (:8085)
+│   └── notification-service/   # Resend email notifications & delivery logs (:8086)
+│
+├── deploy/
+│   ├── ci.yml                  # GitHub Actions CI/CD pipeline template
+│   └── MANAGED_CLOUD_PAAS_GUIDE.md # Cloud PaaS deployment guide (Neon, Upstash, Render)
+│
+├── docker/                     # Prometheus scrape configs & Grafana dashboards
+├── docker-compose.yaml         # Local infrastructure (Databases, Kafka, Redis, UI)
+├── docker-compose.full.yml     # Complete full-stack local orchestration
+├── render.yaml                 # 1-Click Render.com Blueprint (IaC)
+├── decision.md                 # Architecture Decision Records (ADRs)
+├── implementation.md           # Implementation tracker & sprint history
 └── README.md
 ```
 
