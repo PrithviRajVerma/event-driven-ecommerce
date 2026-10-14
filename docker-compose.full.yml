@@ -1,0 +1,417 @@
+version: '3.8'
+
+services:
+
+  # =========================================================================
+  # INFRASTRUCTURE: DATABASES
+  # =========================================================================
+
+  auth-db:
+    image: postgres:18.6
+    container_name: ecommerce-auth-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d auth_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce-network
+
+  product-db:
+    image: postgres:18.6
+    container_name: ecommerce-product-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: product_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - product-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d product_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce-network
+
+  order-db:
+    image: postgres:18.6
+    container_name: ecommerce-order-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: order_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - order-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d order_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce-network
+
+  inventory-db:
+    image: postgres:18.6
+    container_name: ecommerce-inventory-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: inventory_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5436:5432"
+    volumes:
+      - inventory-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d inventory_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce-network
+
+  payment-db:
+    image: postgres:18.6
+    container_name: ecommerce-payment-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5437:5432"
+    volumes:
+      - payment-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d payment_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce-network
+
+  notification-db:
+    image: postgres:18.6
+    container_name: ecommerce-notification-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5438:5432"
+    volumes:
+      - notification-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d notification_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce-network
+
+  # =========================================================================
+  # INFRASTRUCTURE: REDIS & KAFKA
+  # =========================================================================
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecommerce-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ecommerce-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: ecommerce-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - ecommerce-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: ecommerce-kafka-ui
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: ecommerce-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: 'true'
+    depends_on:
+      - kafka
+    networks:
+      - ecommerce-network
+
+  # =========================================================================
+  # OBSERVABILITY: PROMETHEUS, GRAFANA & ZIPKIN
+  # =========================================================================
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: ecommerce-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ecommerce-network
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: ecommerce-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - ecommerce-network
+
+  zipkin:
+    image: openzipkin/zipkin:3.4
+    container_name: ecommerce-zipkin
+    restart: unless-stopped
+    ports:
+      - "9411:9411"
+    networks:
+      - ecommerce-network
+
+  # =========================================================================
+  # MICROSERVICES
+  # =========================================================================
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: ecommerce-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - AUTH_SERVICE_URL=http://auth-service:8081
+      - PRODUCT_SERVICE_URL=http://product-service:8082
+      - ORDER_SERVICE_URL=http://order-service:8083
+      - PAYMENT_SERVICE_URL=http://payment-service:8084
+      - INVENTORY_SERVICE_URL=http://inventory-service:8085
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8086
+      - ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    container_name: ecommerce-auth-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVER_PORT=8081
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://auth-db:5432/auth_db?options=-c%20TimeZone=UTC
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
+  product-service:
+    build:
+      context: .
+      dockerfile: services/product-service/Dockerfile
+    container_name: ecommerce-product-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      - SERVER_PORT=8082
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://product-db:5432/product_db?options=-c%20TimeZone=UTC
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
+    depends_on:
+      product-db:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
+  order-service:
+    build:
+      context: .
+      dockerfile: services/order-service/Dockerfile
+    container_name: ecommerce-order-service
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      - SERVER_PORT=8083
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://order-db:5432/order_db?options=-c%20TimeZone=UTC
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
+    depends_on:
+      order-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: services/payment-service/Dockerfile
+    container_name: ecommerce-payment-service
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      - SERVER_PORT=8084
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://payment-db:5432/payment_db?options=-c%20TimeZone=UTC
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
+    depends_on:
+      payment-db:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: services/inventory-service/Dockerfile
+    container_name: ecommerce-inventory-service
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      - SERVER_PORT=8085
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://inventory-db:5432/inventory_db?options=-c%20TimeZone=UTC
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    container_name: ecommerce-notification-service
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      - SERVER_PORT=8086
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://notification-db:5432/notification_db?options=-c%20TimeZone=UTC
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-onboarding@resend.dev}
+      - RESEND_DEFAULT_RECIPIENT=${RESEND_DEFAULT_RECIPIENT:-}
+      - ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
+    depends_on:
+      notification-db:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
+# =========================================================================
+# VOLUMES & NETWORKS
+# =========================================================================
+
+volumes:
+  auth-db-data:
+  product-db-data:
+  order-db-data:
+  inventory-db-data:
+  payment-db-data:
+  notification-db-data:
+  kafka-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  ecommerce-network:
+    driver: bridge

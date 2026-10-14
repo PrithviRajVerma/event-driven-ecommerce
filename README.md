@@ -108,12 +108,14 @@ The project is being developed incrementally.
 -   **Choreographed Sagas:** Distributed order placement saga (`OrderCreated` ➔ `InventoryReserved` ➔ `PaymentCompleted` ➔ `OrderCompleted` + `Notifications`) with compensating transactions (`InventoryReservationFailed` / `PaymentFailed` ➔ `ReleaseInventory` + `OrderCancelled`).
 -   **Consumer Idempotency:** Event deduplication tables (`processed_events`) and idempotency services in every consuming service preventing duplicate execution.
 -   **Kafka Web UI (`:8090`):** Real-time web dashboard for browsing topics, messages, consumer lag, and broker partitions.
+-   **Full-Stack Containerization:** Multi-stage production Dockerfiles for all 7 microservices (`eclipse-temurin:21-jre-alpine`, non-root user, container memory limits) + `docker-compose.full.yml` running the entire stack.
+-   **CI/CD Automation:** Production GitHub Actions workflow template (`deploy/ci.yml`) automatically validating Gradle tests, bootJar builds, and Docker container builds on every push/PR.
+-   **Observability & Tracing:** Actuator Prometheus metrics scraping (`:9090`), Zipkin distributed tracing (`:9411`), and automated Grafana dashboards (`:3000`).
+-   **Consumer Resilience:** Poison-pill isolation and retry backoff policies configured via `KafkaConsumerConfig`.
 
-### Currently Being Developed (Sprint 11)
--   Prometheus & Grafana centralized dashboards & alerting
--   Zipkin distributed tracing instrumentation across all microservices
--   Resilience4j Circuit Breakers, Bulkheads & Retry policies
--   End-to-end integration and load testing
+### Currently Being Developed (Sprint 11 Hardening)
+-   Resilience4j Circuit Breakers & Fallbacks
+-   Kubernetes Deployment Manifests & Helm Charts
 
 ------------------------------------------------------------------------
 
@@ -747,17 +749,56 @@ service discovery without introducing another registry.
 
 ------------------------------------------------------------------------
 
-# Observability
+# Observability & Distributed Tracing
 
-Spring Boot Actuator is part of the production-hardening layer.
+The platform features an end-to-end observability stack combining Spring Boot Actuator, Micrometer, Prometheus, Grafana, and Zipkin:
 
-Planned observability includes:
+-   **Metrics Scraping (Prometheus `:9090`):** Automatically scrapes `/actuator/prometheus` across all 7 services every 5 seconds.
+-   **Distributed Tracing (Zipkin `:9411`):** Every request receives an `X-Correlation-ID` at the API Gateway. Downstream HTTP calls and Kafka event headers propagate Brave trace/span contexts to Zipkin.
+-   **Visual Dashboards (Grafana `:3000`):** Pre-provisioned Prometheus & Zipkin datasources with a live overview dashboard tracking service health, request rates, P95/P99 latencies, JVM memory, and HikariCP connection pools.
 
--   Health checks
--   Readiness/liveness
--   Application metrics
--   Operational visibility
--   Distributed workflow visibility
+------------------------------------------------------------------------
+
+# How to Run & Deploy
+
+### Option 1: Full-Stack Docker Deployment (Recommended)
+
+Run all 6 databases, Kafka, Redis, Prometheus, Grafana, Zipkin, Kafka UI, and all 7 Spring Boot microservices together in isolated containers:
+
+```bash
+# 1. Compile all service JARs
+./gradlew bootJar -x test
+
+# 2. Boot the complete platform with health checks
+docker compose -f docker-compose.full.yml up --build -d
+
+# 3. View running services
+docker compose -f docker-compose.full.yml ps
+```
+
+**Port Access Matrix:**
+| Service / Tool | Port | Endpoint / URL |
+|---|---|---|
+| API Gateway | 8080 | http://localhost:8080 |
+| Kafka Web UI | 8090 | http://localhost:8090 |
+| Grafana Dashboards | 3000 | http://localhost:3000 (`admin`/`admin`) |
+| Prometheus | 9090 | http://localhost:9090 |
+| Zipkin Tracing | 9411 | http://localhost:9411 |
+| pgAdmin | 5050 | http://localhost:5050 |
+
+### Option 2: Local Microservices with Docker Infrastructure
+
+If running microservices locally via IDE or Gradle:
+
+```bash
+# 1. Start supporting infrastructure
+docker compose up -d
+
+# 2. Run any service via Gradle
+./gradlew :services:api-gateway:bootRun
+./gradlew :services:auth-service:bootRun
+./gradlew :services:order-service:bootRun
+```
 
 ------------------------------------------------------------------------
 

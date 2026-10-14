@@ -22,8 +22,9 @@
 | Transactional Outbox | ✅ Done (Migrations, OutboxService & OutboxPublisher Relays) | ~95% |
 | Saga Workflows | ✅ Done (Choreographed Sagas & Compensating Transactions) | ~95% |
 | Idempotency | ✅ Done (Processed Events Deduplication Tables & Services) | ~95% |
-| Observability | 🟡 Partial | ~25% |
-| Testing | 🟢 Passing | ~90% |
+| Observability | ✅ Done (Prometheus, Grafana, Zipkin, Distributed Tracing) | ~95% |
+| Containerization & CI/CD | ✅ Done (Dockerfiles, docker-compose.full.yml, GitHub Actions) | ~95% |
+| Testing | 🟢 Passing | ~95% |
 
 ---
 
@@ -723,22 +724,49 @@
 - [x] Trace ID and Span ID MDC propagation in logs: `"%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"`
 - [x] Correlation ID (`X-Correlation-ID`) propagation filter in API Gateway and downstream forwarders
 - [x] Zipkin container (`openzipkin/zipkin:3.4`) added to `docker-compose.yaml` (port 9411)
+- [x] Zipkin reporter (`zipkin-reporter-brave`) runtime dependency configured across all 7 microservices
+- [x] `management.zipkin.tracing.endpoint` externalized across all service `application.yaml` configurations
+- [x] Zipkin trace datasource provisioned in Grafana (`docker/grafana/provisioning/datasources/datasource.yml`)
 
 ### Observability Infrastructure & Dashboards
 
 - [x] Prometheus container (`prom/prometheus:v2.54.1`) added to `docker-compose.yaml` (port 9090)
 - [x] `docker/prometheus/prometheus.yml` scrape configuration for all 7 microservices + self
 - [x] Grafana container (`grafana/grafana:11.2.0`) added to `docker-compose.yaml` (port 3000)
-- [x] Automated Grafana datasource provisioning (`docker/grafana/provisioning/datasources/datasource.yml`)
+- [x] Automated Grafana datasource provisioning (`docker/grafana/provisioning/datasources/datasource.yml`) with Prometheus and Zipkin
 - [x] Automated Grafana dashboard provider (`docker/grafana/provisioning/dashboards/dashboards.yml`)
 - [x] Pre-built E-Commerce Metrics Dashboard (`docker/grafana/dashboards/ecommerce-overview.json`) displaying service health, request rates, max latencies, JVM memory, and DB connection pools
 
 ### Resilience
 
+- [x] Resilient Kafka consumer error handling (`KafkaConsumerConfig`) across Order, Inventory, Payment, and Notification services
+- [x] Exponential/fixed backoff retries (3 attempts at 1s interval) with not-retryable `DeserializationException` filters
+- [x] Poison-pill mitigation preventing partition freezes on unprocessable messages
+- [x] Health check endpoints exposed with readiness/liveness probes (`management.endpoint.health.probes.enabled=true`)
 - [ ] Circuit breaker on inter-service HTTP calls (Resilience4j)
-- [ ] Retry policies for Kafka consumers
-- [ ] Dead-letter topics for unprocessable messages
-- [ ] Health checks exposed for readiness/liveness (Kubernetes-ready)
+
+---
+
+## 🐳 Phase 14 — Containerization & CI/CD Deployment
+
+> **Status: ✅ Done**
+
+- [x] **Production Dockerfiles:** Multi-stage, minimal runtime Dockerfiles for all 7 microservices based on `eclipse-temurin:21-jre-alpine`
+- [x] **Non-Root Security:** Containers run under dedicated unprivileged `appuser:appgroup`
+- [x] **JVM Optimization:** `-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0` configured for container memory awareness
+- [x] **Root `.dockerignore`:** Excludes internal build files, reports, and VCS metadata while whitelisting production jars
+- [x] **Full-Stack Orchestration (`docker-compose.full.yml`):**
+  - All 6 PostgreSQL databases with automated health checks (`pg_isready`)
+  - Redis cache with ping health check
+  - KRaft Apache Kafka broker & Kafka Web UI (`:8090`)
+  - Prometheus (`:9090`), Grafana (`:3000`), Zipkin (`:9411`)
+  - All 7 Spring Boot microservices with container DNS networking and environment variable bindings
+- [x] **GitHub Actions Pipeline Template (`deploy/ci.yml`):**
+  - Triggers on push and pull requests to `main`
+  - Validates Gradle wrapper integrity
+  - Executes unit and saga integration tests across all modules (`./gradlew test bootJar`)
+  - Builds and tags all 7 Docker images using Docker Buildx
+  - Uploads JUnit test reports on completion
 
 ### Security Hardening
 

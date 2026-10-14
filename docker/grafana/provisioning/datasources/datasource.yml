@@ -7,3 +7,10 @@ datasources:
     url: http://prometheus:9090
     isDefault: true
     editable: true
+
+  - name: Zipkin
+    type: zipkin
+    access: proxy
+    url: http://zipkin:9411
+    isDefault: false
+    editable: true

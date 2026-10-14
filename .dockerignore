@@ -1,0 +1,12 @@
+.git
+.github
+.gradle
+.idea
+*.iml
+*.log
+.DS_Store
+.env/
+docker-compose.override.yml
+*.md
+**/build/*
+!**/build/libs
