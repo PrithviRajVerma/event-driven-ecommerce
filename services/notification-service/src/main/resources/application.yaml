@@ -65,3 +65,10 @@ springdoc:
     operations-sorter: method
     tags-sorter: alpha
     try-it-out-enabled: true
+
+resend:
+  api-key: ${RESEND_API_KEY:}
+  from-email: ${RESEND_FROM_EMAIL:onboarding@resend.dev}
+  default-recipient: ${RESEND_DEFAULT_RECIPIENT:}
+  api-url: ${RESEND_API_URL:https://api.resend.com/emails}
+

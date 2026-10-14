@@ -367,18 +367,24 @@ Planned responsibilities:
 
 # Notification Service
 
-Notification Service will consume business events and handle
-asynchronous notifications.
+Notification Service consumes asynchronous business events from Kafka and handles
+customer email dispatches without blocking the core business transaction.
 
-Planned responsibilities:
+**Implemented Capabilities:**
+-   **Kafka Consumers:** Listens to `OrderCreatedEvent`, `PaymentCompletedEvent`, `PaymentFailedEvent`, and `OrderCancelledEvent`.
+-   **Audit & Tracking:** Persists notification history to `notification_db` using Flyway migrations with customer/order lookups.
+-   **Pluggable Email Engine:**
+    -   **Resend Integration (`ResendEmailService`):** Sends real emails via the Resend REST API (`POST https://api.resend.com/emails`) using Spring's `RestClient`.
+    -   **Sandbox Safety (`defaultRecipient`):** Routes emails to your verified account address when testing in the free developer sandbox.
+    -   **Zero-Config Fallback (`MockEmailService`):** Automatically active when `RESEND_API_KEY` is omitted, logging dispatch events locally without failing offline builds or CI/CD pipelines.
 
--   Email notifications
--   Order confirmation
--   Payment notifications
--   Failure notifications
-
-The notification workflow should not block the core business
-transaction.
+**Email Configuration:**
+```bash
+# Optional: Set to send live emails via Resend
+export RESEND_API_KEY="re_123456789"
+export RESEND_FROM_EMAIL="onboarding@resend.dev" # or verified domain e.g. orders@yourdomain.com
+export RESEND_DEFAULT_RECIPIENT="you@example.com" # overrides recipient for sandbox testing
+```
 
 ------------------------------------------------------------------------
 
