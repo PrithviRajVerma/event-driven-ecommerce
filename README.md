@@ -800,20 +800,6 @@ docker compose up -d
 ./gradlew :services:order-service:bootRun
 ```
 
-### Option 3: 100% Free Cloud Kubernetes (Oracle Cloud Always Free + K3s)
-
-Deploy the entire platform on a certified Kubernetes cluster with 4 ARM vCPUs and 24 GB RAM for $0/month forever.
-
-See the complete step-by-step guide: [Oracle Cloud K3s Deployment Guide](file:///home/assassin/MY_WORK/Code/resume-projects/event-driven-eccomerce/k8s/ORACLE_CLOUD_K3S_GUIDE.md).
-
-```bash
-# Apply all Kubernetes manifests in ordered sequence
-./k8s/deploy-k8s.sh
-
-# Monitor cluster pods
-kubectl get pods -n ecommerce -w
-```
-
 ------------------------------------------------------------------------
 
 # Project Structure
