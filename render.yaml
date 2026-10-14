@@ -1,0 +1,195 @@
+# ==============================================================================
+# Render.com Infrastructure-as-Code Blueprint for Event-Driven E-Commerce
+# ==============================================================================
+# Deploy this blueprint directly from Render Dashboard:
+# 1. Sign up on https://render.com
+# 2. Click "Blueprints" -> "New Blueprint Instance"
+# 3. Select this GitHub repository
+# 4. Fill in the values for the "ecommerce-cloud-env" environment group
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. API Gateway (Public Entry Point)
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: api-gateway
+    runtime: docker
+    dockerfilePath: ./services/api-gateway/Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: ecommerce-cloud-env
+      - key: PORT
+        value: 8080
+      - key: AUTH_SERVICE_URL
+        fromService:
+          type: web
+          name: auth-service
+          property: host
+      - key: PRODUCT_SERVICE_URL
+        fromService:
+          type: web
+          name: product-service
+          property: host
+      - key: ORDER_SERVICE_URL
+        fromService:
+          type: web
+          name: order-service
+          property: host
+      - key: PAYMENT_SERVICE_URL
+        fromService:
+          type: web
+          name: payment-service
+          property: host
+      - key: INVENTORY_SERVICE_URL
+        fromService:
+          type: web
+          name: inventory-service
+          property: host
+      - key: NOTIFICATION_SERVICE_URL
+        fromService:
+          type: web
+          name: notification-service
+          property: host
+
+  # ----------------------------------------------------------------------------
+  # 2. Auth Service
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: auth-service
+    runtime: docker
+    dockerfilePath: ./services/auth-service/Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: ecommerce-cloud-env
+      - key: PORT
+        value: 8081
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+
+  # ----------------------------------------------------------------------------
+  # 3. Product Service
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: product-service
+    runtime: docker
+    dockerfilePath: ./services/product-service/Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: ecommerce-cloud-env
+      - key: PORT
+        value: 8082
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+
+  # ----------------------------------------------------------------------------
+  # 4. Order Service
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: order-service
+    runtime: docker
+    dockerfilePath: ./services/order-service/Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: ecommerce-cloud-env
+      - key: PORT
+        value: 8083
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+
+  # ----------------------------------------------------------------------------
+  # 5. Inventory Service
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: inventory-service
+    runtime: docker
+    dockerfilePath: ./services/inventory-service/Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: ecommerce-cloud-env
+      - key: PORT
+        value: 8085
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+
+  # ----------------------------------------------------------------------------
+  # 6. Payment Service
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: payment-service
+    runtime: docker
+    dockerfilePath: ./services/payment-service/Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: ecommerce-cloud-env
+      - key: PORT
+        value: 8084
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+
+  # ----------------------------------------------------------------------------
+  # 7. Notification Service
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: notification-service
+    runtime: docker
+    dockerfilePath: ./services/notification-service/Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: ecommerce-cloud-env
+      - key: PORT
+        value: 8086
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+
+# ------------------------------------------------------------------------------
+# Shared Environment Variable Group
+# ------------------------------------------------------------------------------
+envVarGroups:
+  - name: ecommerce-cloud-env
+    envVars:
+      # Neon.tech / Cloud Postgres credentials
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+
+      # Upstash Redis
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        value: "6379"
+      - key: REDIS_PASSWORD
+        sync: false
+      - key: REDIS_SSL_ENABLED
+        value: "true"
+
+      # Upstash Kafka (SASL_SSL)
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        sync: false
+      - key: KAFKA_SECURITY_PROTOCOL
+        value: "SASL_SSL"
+      - key: KAFKA_SASL_MECHANISM
+        value: "SCRAM-SHA-256"
+      - key: KAFKA_SASL_JAAS_CONFIG
+        sync: false
+
+      # Security & External APIs
+      - key: JWT_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false

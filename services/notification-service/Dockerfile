@@ -1,15 +1,23 @@
+# Stage 1: Build application JAR from source
+FROM eclipse-temurin:21-jdk-alpine AS builder
+WORKDIR /app
+COPY gradlew settings.gradle.kts build.gradle.kts ./
+COPY gradle gradle
+COPY libs libs
+COPY services services
+RUN chmod +x gradlew && ./gradlew :services:notification-service:bootJar -x test --no-daemon
+
+# Stage 2: Lightweight production runtime image
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-ARG JAR_FILE=services/notification-service/build/libs/notification-service-0.0.1-SNAPSHOT.jar
-COPY ${JAR_FILE} app.jar
-
+COPY --from=builder /app/services/notification-service/build/libs/notification-service-*.jar app.jar
 RUN chown appuser:appgroup app.jar
 USER appuser
 
-ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom"
 EXPOSE 8086
 
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]

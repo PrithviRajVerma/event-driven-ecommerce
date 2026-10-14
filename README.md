@@ -800,6 +800,17 @@ docker compose up -d
 ./gradlew :services:order-service:bootRun
 ```
 
+### Option 3: 100% Free Managed Cloud PaaS (Render / Railway + Neon + Upstash)
+
+Deploy the entire architecture across managed cloud platforms with **zero Linux server administration**:
+- **PostgreSQL Databases:** [Neon.tech](https://neon.tech) (Serverless, SSL)
+- **Redis Cache & Rate Limiter:** [Upstash Redis](https://upstash.com) (Serverless, TLS)
+- **Kafka Event Broker:** [Upstash Kafka](https://upstash.com) (Serverless, SASL_SSL)
+- **Microservice Containers:** [Render.com](https://render.com) (via [`render.yaml`](file:///home/assassin/MY_WORK/Code/resume-projects/event-driven-eccomerce/render.yaml)) or [Railway.app](https://railway.app)
+- **Email Service:** [Resend](https://resend.com)
+
+See the complete step-by-step guide: [Managed Cloud PaaS Deployment Guide](file:///home/assassin/MY_WORK/Code/resume-projects/event-driven-eccomerce/deploy/MANAGED_CLOUD_PAAS_GUIDE.md).
+
 ------------------------------------------------------------------------
 
 # Project Structure
